@@ -7,7 +7,7 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
 
     private BufferedImage back;
     private int key;
-    private char screen;
+    private String level;
 
     public Game() {
         new Thread(this).start();
@@ -15,7 +15,7 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         this.addMouseMotionListener(this);
         this.addMouseListener(this);
         key = -1;
-        screen = 'S';
+        level = "start";
 
     }
 
@@ -31,21 +31,21 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
     }
 
     public void screen(Graphics g2d) {
-        switch (screen) {
+        switch (level) {
 
-            case 'S':
-
+            case "start":
+                drawStart(g2d);
                 break;
 
-            case 'G':
-
-                g2d.clearRect(0, 0, getSize().width, getSize().height);
-
+            case "game":
+                drawGame(g2d);
                 break;
 
         }
 
     }
+
+   
 
     public void paint(Graphics g) {
         Graphics2D twoDgraph = (Graphics2D) g;
@@ -63,6 +63,26 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         twoDgraph.drawImage(back, 0, 0, null);
     }
 
+    private void drawStart(Graphics g2d) {
+        //g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
+        g2d.setColor(Color.BLACK);
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+		g2d.setColor(new Color(100, 225, 247));
+		g2d.setFont(new Font("Courier New", Font.BOLD, 150));
+		g2d.drawString("Rhythm Trainer", (getWidth() - g2d.getFontMetrics().stringWidth("Rhythm Trainer")) / 2, 400);
+		g2d.setColor(Color.WHITE);
+		g2d.setFont(new Font("Courier New", Font.BOLD, 60));
+		g2d.drawString("Press Space to start", (getWidth() - g2d.getFontMetrics().stringWidth("Press Space to start")) / 2, 700);
+    }
+
+    private void drawGame(Graphics g2d) {
+        g2d.setColor(Color.BLACK);
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Courier New", Font.BOLD, 60));
+        g2d.drawString("Game Level", (getWidth() - g2d.getFontMetrics().stringWidth("Game Level")) / 2, 400);
+    }
+
     @Override
     public void keyTyped(KeyEvent e) {
 
@@ -73,9 +93,12 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         key = e.getKeyCode();
         System.out.println(key);
 
-        if (e.getKeyCode() == 0) {
-
-        }
+        if (level == "start") {
+			if (key == 32) {
+				key = -1;
+				level = "game";
+			}
+		}
 
     }
 
