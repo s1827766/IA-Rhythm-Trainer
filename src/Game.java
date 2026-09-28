@@ -80,7 +80,12 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         g2d.fillRect(0, 0, getWidth(), getHeight());
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
-        g2d.drawString("Game Level", (getWidth() - g2d.getFontMetrics().stringWidth("Game Level")) / 2, 400);
+    }
+
+    private void drawTrack(Graphics g2d) {
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Courier New", Font.BOLD, 60));
+        g2d.drawString("Track Level", (getWidth() - g2d.getFontMetrics().stringWidth("Track Level")) / 2, 400);
     }
 
     @Override
