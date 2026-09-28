@@ -4,11 +4,11 @@ import java.awt.event.*;
 
 @SuppressWarnings("unused")
 public class Main extends JFrame {
-    private static final int WIDTH = 1350;
-    private static final int HEIGHT = 735;
+    private static final int WIDTH = 1920;
+    private static final int HEIGHT = 985;
 
     public Main() {
-        super("Demo");
+        super("Rhythm Trainer");
         setSize(WIDTH, HEIGHT);
         Game play = new Game();
         ((Component) play).setFocusable(true);
