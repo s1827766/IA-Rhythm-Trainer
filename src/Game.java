@@ -1,13 +1,17 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.awt.event.*;
+import java.util.Random;
 
 public class Game extends JPanel implements Runnable, KeyListener, MouseListener, MouseMotionListener {
 
     private BufferedImage back;
-    private int key;
+    private int key, count;
+    private Random random = new Random();
     private String level;
+    private ArrayList<Rhythm> rhythms = new ArrayList<>();
 
     public Game() {
         new Thread(this).start();
@@ -15,6 +19,7 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         this.addMouseMotionListener(this);
         this.addMouseListener(this);
         key = -1;
+        count = 0;
         level = "start";
 
     }
@@ -38,14 +43,25 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
                 break;
 
             case "game":
+                setRhythms();
                 drawGame(g2d);
+
+                count++;
+                drawRhythms(g2d, rhythms);
                 break;
 
         }
 
     }
 
-   
+    public void setRhythms() {
+        if (count % 450 == 0) {
+
+            int randX = random.nextInt(5) * 200 + (getWidth() / 2) - 500;
+            rhythms.add(new Rhythm(randX, 0, 200, 25, getRandomColor()));
+            rhythms.get(rhythms.size() - 1).setDy(1);
+        }
+    }
 
     public void paint(Graphics g) {
         Graphics2D twoDgraph = (Graphics2D) g;
@@ -63,29 +79,55 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         twoDgraph.drawImage(back, 0, 0, null);
     }
 
-    private void drawStart(Graphics g2d) {
-        //g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
+    public void drawStart(Graphics g2d) {
+        // g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
         g2d.setColor(Color.BLACK);
         g2d.fillRect(0, 0, getWidth(), getHeight());
-		g2d.setColor(new Color(100, 225, 247));
-		g2d.setFont(new Font("Courier New", Font.BOLD, 150));
-		g2d.drawString("Rhythm Trainer", (getWidth() - g2d.getFontMetrics().stringWidth("Rhythm Trainer")) / 2, 400);
-		g2d.setColor(Color.WHITE);
-		g2d.setFont(new Font("Courier New", Font.BOLD, 60));
-		g2d.drawString("Press Space to start", (getWidth() - g2d.getFontMetrics().stringWidth("Press Space to start")) / 2, 700);
+        g2d.setColor(new Color(100, 225, 247));
+        g2d.setFont(new Font("Courier New", Font.BOLD, 150));
+        g2d.drawString("Rhythm Trainer", (getWidth() - g2d.getFontMetrics().stringWidth("Rhythm Trainer")) / 2, 400);
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Courier New", Font.BOLD, 60));
+        g2d.drawString("Press Space to start",
+                (getWidth() - g2d.getFontMetrics().stringWidth("Press Space to start")) / 2, 700);
     }
 
-    private void drawGame(Graphics g2d) {
+    public void drawGame(Graphics g2d) {
         g2d.setColor(Color.BLACK);
         g2d.fillRect(0, 0, getWidth(), getHeight());
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
+
+        drawTrack(g2d);
     }
 
-    private void drawTrack(Graphics g2d) {
+    public void drawTrack(Graphics g2d) {
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
-        g2d.drawString("Track Level", (getWidth() - g2d.getFontMetrics().stringWidth("Track Level")) / 2, 400);
+        ((Graphics2D) g2d).setStroke(new BasicStroke(5f));
+        g2d.drawLine((getWidth() / 2) - 500, 100, (getWidth() / 2) - 500, getHeight() - 100);
+        g2d.drawLine((getWidth() / 2) - 300, 100, (getWidth() / 2) - 300, getHeight() - 100);
+        g2d.drawLine((getWidth() / 2) - 100, 100, (getWidth() / 2) - 100, getHeight() - 100);
+        g2d.drawLine((getWidth() / 2) + 100, 100, (getWidth() / 2) + 100, getHeight() - 100);
+        g2d.drawLine((getWidth() / 2) + 300, 100, (getWidth() / 2) + 300, getHeight() - 100);
+        g2d.drawLine((getWidth() / 2) + 500, 100, (getWidth() / 2) + 500, getHeight() - 100);
+
+        g2d.drawLine((getWidth() / 2) - 600, (getWidth() / 2) - 200, (getWidth() / 2) + 600, (getWidth() / 2) - 200);
+        g2d.drawLine((getWidth() / 2) - 600, (getWidth() / 2) - 150, (getWidth() / 2) + 600, (getWidth() / 2) - 150);
+    }
+
+    public void drawRhythms(Graphics g2d, ArrayList<Rhythm> rhythms) {
+        for (Rhythm rhythm : rhythms) {
+            g2d.setColor(rhythm.getColor());
+            g2d.fillRect(rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
+        }
+    }
+
+    public Color getRandomColor() {
+        int r = (int) (Math.random() * 255);
+        int g = (int) (Math.random() * 255);
+        int b = (int) (Math.random() * 255);
+        return new Color(r, g, b);
     }
 
     @Override
@@ -99,11 +141,11 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         System.out.println(key);
 
         if (level == "start") {
-			if (key == 32) {
-				key = -1;
-				level = "game";
-			}
-		}
+            if (key == 32) {
+                key = -1;
+                level = "game";
+            }
+        }
 
     }
 
