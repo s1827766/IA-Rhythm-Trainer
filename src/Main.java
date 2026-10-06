@@ -5,7 +5,7 @@ import java.awt.event.*;
 @SuppressWarnings("unused")
 public class Main extends JFrame {
     private static final int WIDTH = 1920;
-    private static final int HEIGHT = 985;
+    private static final int HEIGHT = 900;
 
     public Main() {
         super("Rhythm Trainer");

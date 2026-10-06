@@ -8,10 +8,12 @@ import java.util.Random;
 public class Game extends JPanel implements Runnable, KeyListener, MouseListener, MouseMotionListener {
 
     private BufferedImage back;
-    private int key, count;
+    private int key, count, bpm;
     private Random random = new Random();
     private String level;
     private ArrayList<Rhythm> rhythms = new ArrayList<>();
+    private Rectangle t1, t2, t3, t4, t5;
+    private ArrayList<Rectangle> trackRectangles = new ArrayList<>();
 
     public Game() {
         new Thread(this).start();
@@ -20,6 +22,7 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         this.addMouseListener(this);
         key = -1;
         count = 0;
+        bpm = 152;
         level = "start";
 
     }
@@ -47,7 +50,6 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
                 drawGame(g2d);
 
                 count++;
-                drawRhythms(g2d, rhythms);
                 break;
 
         }
@@ -55,11 +57,10 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
     }
 
     public void setRhythms() {
-        if (count % 450 == 0) {
+        if (count % (1000 / bpm) == 0) {
 
             int randX = random.nextInt(5) * 200 + (getWidth() / 2) - 500;
-            rhythms.add(new Rhythm(randX, 0, 200, 25, getRandomColor()));
-            rhythms.get(rhythms.size() - 1).setDy(1);
+            rhythms.add(new Rhythm(randX, 0, 200, 45, getRandomColor()));
         }
     }
 
@@ -98,7 +99,9 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
 
+        drawRhythms(g2d, rhythms);
         drawTrack(g2d);
+        drawRects(g2d);
     }
 
     public void drawTrack(Graphics g2d) {
@@ -120,7 +123,36 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         for (Rhythm rhythm : rhythms) {
             g2d.setColor(rhythm.getColor());
             g2d.fillRect(rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
+            rhythm.setDy(1);
         }
+    }
+
+    public void drawRects(Graphics g2d) {
+
+        g2d.setColor(Color.RED);
+        g2d.drawRect(t1.x, t1.y, t1.width, t1.height);
+        g2d.setColor(Color.BLUE);
+        g2d.drawRect(t2.x, t2.y, t2.width, t2.height);
+        g2d.setColor(Color.GREEN);
+        g2d.drawRect(t3.x, t3.y, t3.width, t3.height);
+        g2d.setColor(Color.YELLOW);
+        g2d.drawRect(t4.x, t4.y, t4.width, t4.height);
+        g2d.setColor(Color.MAGENTA);
+        g2d.drawRect(t5.x, t5.y, t5.width, t5.height);
+    }
+
+    public boolean checkHit(Rectangle hitRect) {
+        for (Rhythm rhythm : rhythms) {
+            Rectangle rhythmRect = new Rectangle(
+                    rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
+
+            if (rhythmRect.intersects(hitRect)) {
+                rhythms.remove(rhythm);
+                return true;
+            }
+
+        }
+        return false;
     }
 
     public Color getRandomColor() {
@@ -138,15 +170,69 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
     @Override
     public void keyPressed(KeyEvent e) {
         key = e.getKeyCode();
-        System.out.println(key);
+        // System.out.println(key);
 
         if (level == "start") {
             if (key == 32) {
                 key = -1;
                 level = "game";
+
+                t1 = new Rectangle((getWidth() / 2) - 500, (getWidth() / 2) - 200, 200, 50);
+                t2 = new Rectangle((getWidth() / 2) - 300, (getWidth() / 2) - 200, 200, 50);
+                t3 = new Rectangle((getWidth() / 2) - 100, (getWidth() / 2) - 200, 200, 50);
+                t4 = new Rectangle((getWidth() / 2) + 100, (getWidth() / 2) - 200, 200, 50);
+                t5 = new Rectangle((getWidth() / 2) + 300, (getWidth() / 2) - 200, 200, 50);
+
+                trackRectangles.add(t1);
+                trackRectangles.add(t2);
+                trackRectangles.add(t3);
+                trackRectangles.add(t4);
+                trackRectangles.add(t5);
             }
         }
 
+        if (level == "game") {
+            if (key == 68) {
+                key = -1;
+                if (checkHit(t1)) {
+                    System.out.println("t1 hit");
+                } else {
+                    System.out.println("t1 miss");
+                }
+            }
+            if (key == 70) {
+                key = -1;
+                if (checkHit(t2)) {
+                    System.out.println("t2 hit");
+                } else {
+                    System.out.println("t2 miss");
+                }
+            }
+            if (key == 74) {
+                key = -1;
+                if (checkHit(t3)) {
+                    System.out.println("t3 hit");
+                } else {
+                    System.out.println("t3 miss");
+                }
+            }
+            if (key == 75) {
+                key = -1;
+                if (checkHit(t4)) {
+                    System.out.println("t4 hit");
+                } else {
+                    System.out.println("t4 miss");
+                }
+            }
+            if (key == 76) {
+                key = -1;
+                if (checkHit(t5)) {
+                    System.out.println("t5 hit");
+                } else {
+                    System.out.println("t5 miss");
+                }
+            }
+        }
     }
 
     @Override
