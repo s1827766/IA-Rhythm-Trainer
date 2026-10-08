@@ -9,11 +9,13 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
 
     private BufferedImage back;
     private int key, count, bpm;
+    private int beat = 1;
     private Random random = new Random();
     private String level;
     private ArrayList<Rhythm> rhythms = new ArrayList<>();
     private Rectangle t1, t2, t3, t4, t5;
     private ArrayList<Rectangle> trackRectangles = new ArrayList<>();
+    private long nextBeatNanos;
 
     public Game() {
         new Thread(this).start();
@@ -22,7 +24,7 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         this.addMouseListener(this);
         key = -1;
         count = 0;
-        bpm = 152;
+        bpm = 87*2;
         level = "start";
 
     }
@@ -57,7 +59,13 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
     }
 
     public void setRhythms() {
-        if (count % (1000 / bpm) == 0) {
+        long now = System.nanoTime();
+        long beatIntervalNanos = 60_000_000_000L / bpm;
+
+        if (now >= nextBeatNanos) {
+            System.out.println("beat " + beat);
+            beat++;
+            nextBeatNanos += beatIntervalNanos;
 
             int randX = random.nextInt(5) * 200 + (getWidth() / 2) - 500;
             rhythms.add(new Rhythm(randX, 0, 200, 45, getRandomColor()));
@@ -176,6 +184,7 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
             if (key == 32) {
                 key = -1;
                 level = "game";
+                nextBeatNanos = System.nanoTime() + 60_000_000_000L / bpm;
 
                 t1 = new Rectangle((getWidth() / 2) - 500, (getWidth() / 2) - 200, 200, 50);
                 t2 = new Rectangle((getWidth() / 2) - 300, (getWidth() / 2) - 200, 200, 50);
@@ -231,6 +240,12 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
                 } else {
                     System.out.println("t5 miss");
                 }
+            }
+            if (key == 82) {
+                key = -1;
+                rhythms.clear();
+                count = 0;
+                beat = 1;
             }
         }
     }
