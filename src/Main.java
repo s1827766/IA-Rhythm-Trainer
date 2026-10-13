@@ -7,24 +7,30 @@ public class Main extends JFrame {
     private static final int WIDTH = 1920;
     private static final int HEIGHT = 900;
 
-    public Main() {
+    public Main(BeatDetector.Result result) {
         super("Rhythm Trainer");
         setSize(WIDTH, HEIGHT);
-        Game play = new Game();
-        ((Component) play).setFocusable(true);
 
-        setBackground(Color.black);
-
+        Game play = new Game(result);
+        play.setFocusable(true);
         getContentPane().add(play);
 
-        setVisible(true);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
+        setVisible(true);
     }
 
     public static void main(String[] args) {
-        Main run = new Main();
+        try {
+            BeatDetector.Result result =
+                    BeatDetector.analyze(new java.io.File("Bang Bang Bang.wav"));
 
+            System.out.printf("BPM: %.1f%n", result.bpm);
+            System.out.printf("Offset: %.2f seconds%n", result.offsetSeconds);
+
+            new Main(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
 }

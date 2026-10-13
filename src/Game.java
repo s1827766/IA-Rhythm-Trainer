@@ -8,7 +8,8 @@ import java.util.Random;
 public class Game extends JPanel implements Runnable, KeyListener, MouseListener, MouseMotionListener {
 
     private BufferedImage back;
-    private int key, count, bpm;
+    private int key, count;
+    private double bpm, beatOffsetSeconds;
     private int beat = 1;
     private Random random = new Random();
     private String level;
@@ -16,17 +17,18 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
     private Rectangle t1, t2, t3, t4, t5;
     private ArrayList<Rectangle> trackRectangles = new ArrayList<>();
     private long nextBeatNanos;
+    private Sound s = new Sound();
 
-    public Game() {
+    public Game(BeatDetector.Result result) {
         new Thread(this).start();
         this.addKeyListener(this);
         this.addMouseMotionListener(this);
         this.addMouseListener(this);
         key = -1;
         count = 0;
-        bpm = 87*2;
+        bpm = result.bpm;
+        beatOffsetSeconds = result.offsetSeconds;
         level = "start";
-
     }
 
     @SuppressWarnings("static-access")
@@ -60,7 +62,7 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
 
     public void setRhythms() {
         long now = System.nanoTime();
-        long beatIntervalNanos = 60_000_000_000L / bpm;
+        long beatIntervalNanos = (long) (60_000_000_000.0 / bpm);
 
         if (now >= nextBeatNanos) {
             System.out.println("beat " + beat);
@@ -184,7 +186,8 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
             if (key == 32) {
                 key = -1;
                 level = "game";
-                nextBeatNanos = System.nanoTime() + 60_000_000_000L / bpm;
+                nextBeatNanos = System.nanoTime()
+                    + (long) (beatOffsetSeconds * 1_000_000_000.0);
 
                 t1 = new Rectangle((getWidth() / 2) - 500, (getWidth() / 2) - 200, 200, 50);
                 t2 = new Rectangle((getWidth() / 2) - 300, (getWidth() / 2) - 200, 200, 50);
