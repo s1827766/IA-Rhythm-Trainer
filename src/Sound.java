@@ -1,4 +1,3 @@
-import javax.swing.*;
 import javax.sound.sampled.*;
 import java.io.*;
 
@@ -7,6 +6,34 @@ public class Sound {
 
 	private Clip clip;
 	private Clip loopClip;
+
+	public void loadMusic(String musicfile)
+			throws IOException, UnsupportedAudioFileException, LineUnavailableException {
+		if (clip != null) {
+			clip.close();
+		}
+
+		try (AudioInputStream inputStream =
+				AudioSystem.getAudioInputStream(new File(musicfile))) {
+			clip = AudioSystem.getClip();
+			clip.open(inputStream);
+		}
+	}
+
+	public void playPreparedMusic() {
+		if (clip == null) {
+			throw new IllegalStateException("Music has not been prepared.");
+		}
+		clip.setFramePosition(0);
+		clip.start();
+	}
+
+	public void resetMusic() {
+		if (clip != null) {
+			clip.stop();
+			clip.setFramePosition(0);
+		}
+	}
 
 	private void setVolume(Clip c, float volume) {
 		if (c != null && c.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
@@ -30,11 +57,7 @@ public class Sound {
 				}
 			} else {
 				AudioInputStream inputStream;
-				if (Math.random() < 0.001) {
-					inputStream = AudioSystem.getAudioInputStream(new File("sounds\\snd_pombark.wav"));
-				} else {
-					inputStream = AudioSystem.getAudioInputStream(soundFile);
-				}
+				inputStream = AudioSystem.getAudioInputStream(soundFile);
 				clip = AudioSystem.getClip();
 				clip.open(inputStream);
 				setVolume(clip, volume);
@@ -75,4 +98,7 @@ public class Sound {
 
 	}
 
+	public double getPlaybackSeconds() {
+		return clip == null ? 0 : clip.getMicrosecondPosition() / 1_000_000.0;
+	}
 }

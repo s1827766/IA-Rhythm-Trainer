@@ -5,6 +5,7 @@ public class Rhythm {
     private int x, y, width, height, dy;
     private ImageIcon image;
     private Color color;
+    private double targetSeconds;
 
     public Rhythm() {
         x = 0;
@@ -16,12 +17,13 @@ public class Rhythm {
         color = Color.WHITE;
     }
 
-    public Rhythm(int xV, int yV, int w, int h, Color c) {
+    public Rhythm(int xV, int yV, int w, int h, Color c, double targetSeconds) {
         x = xV;
         y = yV;
         width = w;
         height = h;
         color = c;
+        this.targetSeconds = targetSeconds;
     }
 
     public int getX() {
@@ -63,4 +65,11 @@ public class Rhythm {
         this.color = c;
     }
 
+    public double getTargetSeconds() {
+        return targetSeconds;
+    }
+
+    public void setY(int y) {
+        this.y = y;
+    }
 }

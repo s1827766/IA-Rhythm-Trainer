@@ -1,45 +1,45 @@
 import javax.swing.*;
+import javax.sound.sampled.*;
 import java.awt.*;
-import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.awt.event.*;
 import java.util.Random;
 
-public class Game extends JPanel implements Runnable, KeyListener, MouseListener, MouseMotionListener {
+public class Game extends JPanel implements KeyListener {
 
-    private BufferedImage back;
-    private int key, count;
-    private double bpm, beatOffsetSeconds;
-    private int beat = 1;
+    private int key, combo;
+    private double bpm, beatOffsetSeconds, accuracy;
     private Random random = new Random();
     private String level;
     private ArrayList<Rhythm> rhythms = new ArrayList<>();
     private Rectangle t1, t2, t3, t4, t5;
     private ArrayList<Rectangle> trackRectangles = new ArrayList<>();
-    private long nextBeatNanos;
+    private long nextBeatIndex;
+    private static final double TRAVEL_BEATS = 4.0;
     private Sound s = new Sound();
+    private long musicStartNanos;
+    private boolean musicStarted;
 
-    public Game(BeatDetector.Result result) {
-        new Thread(this).start();
+    public Game(BeatDetector.Result result, String musicFile)
+            throws IOException, UnsupportedAudioFileException, LineUnavailableException {
         this.addKeyListener(this);
-        this.addMouseMotionListener(this);
-        this.addMouseListener(this);
         key = -1;
-        count = 0;
+        combo = 0;
+        accuracy = 0;
         bpm = result.bpm;
+        // bpm = 108.0;
         beatOffsetSeconds = result.offsetSeconds;
         level = "start";
-    }
+        s.loadMusic(musicFile);
 
-    @SuppressWarnings("static-access")
-    public void run() {
-        try {
-            while (true) {
-                Thread.currentThread().sleep(5);
-                repaint();
+        Timer timer = new Timer(16, e -> {
+            if ("game".equals(level)) {
+                updateRhythms();
             }
-        } catch (Exception e) {
-        }
+            repaint();
+        });
+        timer.start();
     }
 
     public void screen(Graphics g2d) {
@@ -50,44 +50,63 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
                 break;
 
             case "game":
-                setRhythms();
                 drawGame(g2d);
 
-                count++;
+                for (Rectangle trackRect : trackRectangles) {
+                    checkMiss(trackRect);
+                }
+
                 break;
 
         }
 
     }
 
-    public void setRhythms() {
+    private void updateRhythms() {
         long now = System.nanoTime();
-        long beatIntervalNanos = (long) (60_000_000_000.0 / bpm);
+        if (!musicStarted && now >= musicStartNanos) {
+            s.playPreparedMusic();
+            musicStarted = true;
+        }
 
-        if (now >= nextBeatNanos) {
-            System.out.println("beat " + beat);
-            beat++;
-            nextBeatNanos += beatIntervalNanos;
+        double songSeconds = musicStarted
+                ? s.getPlaybackSeconds()
+                : (now - musicStartNanos) / 1_000_000_000.0;
+        double beatInterval = 60.0 / bpm;
+        double travelSeconds = TRAVEL_BEATS * beatInterval;
 
-            int randX = random.nextInt(5) * 200 + (getWidth() / 2) - 500;
-            rhythms.add(new Rhythm(randX, 0, 200, 45, getRandomColor()));
+        while (true) {
+            double targetSeconds = beatOffsetSeconds + nextBeatIndex * beatInterval;
+            if (targetSeconds - travelSeconds > songSeconds) {
+                break;
+            }
+
+            if (targetSeconds > songSeconds) {
+                int randX = random.nextInt(5) * 200 + (getWidth() / 2) - 500;
+                rhythms.add(new Rhythm(randX, 0, 200, 45,
+                        getRandomColor(), targetSeconds));
+            }
+
+            nextBeatIndex++;
+        }
+
+        double speed = (t1.y - 45) / travelSeconds;
+        java.util.Iterator<Rhythm> iterator = rhythms.iterator();
+        while (iterator.hasNext()) {
+            Rhythm rhythm = iterator.next();
+            double secondsUntilHit = rhythm.getTargetSeconds() - songSeconds;
+            rhythm.setY((int) Math.round(
+                    t1.y - rhythm.getH() - secondsUntilHit * speed));
+            if (secondsUntilHit < -beatInterval) {
+                iterator.remove();
+            }
         }
     }
 
-    public void paint(Graphics g) {
-        Graphics2D twoDgraph = (Graphics2D) g;
-
-        if (back == null)
-            back = (BufferedImage) (createImage(getWidth(), getHeight()));
-
-        Graphics g2d = back.createGraphics();
-
-        g2d.clearRect(0, 0, getSize().width, getSize().height);
-
-        screen(g2d);
-        g2d.setFont(new Font("Courier New", Font.BOLD, 50));
-
-        twoDgraph.drawImage(back, 0, 0, null);
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        screen(g);
     }
 
     public void drawStart(Graphics g2d) {
@@ -108,6 +127,8 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         g2d.fillRect(0, 0, getWidth(), getHeight());
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
+
+        g2d.drawString("Combo: " + combo, 50, 100);
 
         drawRhythms(g2d, rhythms);
         drawTrack(g2d);
@@ -133,7 +154,6 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         for (Rhythm rhythm : rhythms) {
             g2d.setColor(rhythm.getColor());
             g2d.fillRect(rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
-            rhythm.setDy(1);
         }
     }
 
@@ -165,10 +185,32 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         return false;
     }
 
+    public void checkMiss(Rectangle hitRect) {
+        for (int i = 0; i < rhythms.size(); i++) {
+            Rhythm rhythm = rhythms.get(i);
+            if (rhythm.getY() > hitRect.getY() + hitRect.getHeight()) {
+                rhythms.remove(i);
+                i--;
+                combo = 0;
+            }
+        }
+    }
+
+    public int accuracy(Rectangle hitRect) {
+        for (Rhythm rhythm : rhythms) {
+            Rectangle rhythmRect = new Rectangle(
+                    rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
+            int rhythmCenterY = rhythmRect.y + rhythmRect.height / 2;
+            int hitCenterY = hitRect.y + hitRect.height / 2;
+            return Math.abs(rhythmCenterY - hitCenterY);
+        }
+        return -1;
+    }
+
     public Color getRandomColor() {
-        int r = (int) (Math.random() * 255);
-        int g = (int) (Math.random() * 255);
-        int b = (int) (Math.random() * 255);
+        int r = (int) (Math.random() * 225 + 30);
+        int g = (int) (Math.random() * 225 + 30);
+        int b = (int) (Math.random() * 225 + 30);
         return new Color(r, g, b);
     }
 
@@ -185,9 +227,6 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
         if (level == "start") {
             if (key == 32) {
                 key = -1;
-                level = "game";
-                nextBeatNanos = System.nanoTime()
-                    + (long) (beatOffsetSeconds * 1_000_000_000.0);
 
                 t1 = new Rectangle((getWidth() / 2) - 500, (getWidth() / 2) - 200, 200, 50);
                 t2 = new Rectangle((getWidth() / 2) - 300, (getWidth() / 2) - 200, 200, 50);
@@ -200,57 +239,62 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
                 trackRectangles.add(t3);
                 trackRectangles.add(t4);
                 trackRectangles.add(t5);
+
+                double travelSeconds = TRAVEL_BEATS * 60.0 / bpm;
+                double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
+                musicStartNanos = System.nanoTime()
+                        + (long) (leadInSeconds * 1_000_000_000.0);
+                nextBeatIndex = 0;
+                musicStarted = false;
+                combo = 0;
+                rhythms.clear();
+                level = "game";
             }
         }
 
         if (level == "game") {
-            if (key == 68) {
-                key = -1;
-                if (checkHit(t1)) {
-                    System.out.println("t1 hit");
-                } else {
-                    System.out.println("t1 miss");
-                }
+            Rectangle target;
+
+            switch (key) {
+                case 68:
+                    target = t1;
+                    break; // D
+                case 70:
+                    target = t2;
+                    break; // F
+                case 74:
+                    target = t3;
+                    break; // J
+                case 75:
+                    target = t4;
+                    break; // K
+                case 76:
+                    target = t5;
+                    break; // L
+                case 82:
+                    key = -1;
+                    reset();
+                    return;
+                default:
+                    return;
             }
-            if (key == 70) {
-                key = -1;
-                if (checkHit(t2)) {
-                    System.out.println("t2 hit");
-                } else {
-                    System.out.println("t2 miss");
-                }
-            }
-            if (key == 74) {
-                key = -1;
-                if (checkHit(t3)) {
-                    System.out.println("t3 hit");
-                } else {
-                    System.out.println("t3 miss");
-                }
-            }
-            if (key == 75) {
-                key = -1;
-                if (checkHit(t4)) {
-                    System.out.println("t4 hit");
-                } else {
-                    System.out.println("t4 miss");
-                }
-            }
-            if (key == 76) {
-                key = -1;
-                if (checkHit(t5)) {
-                    System.out.println("t5 hit");
-                } else {
-                    System.out.println("t5 miss");
-                }
-            }
-            if (key == 82) {
-                key = -1;
-                rhythms.clear();
-                count = 0;
-                beat = 1;
-            }
+
+            key = -1;
+            combo = checkHit(target) ? combo + 1 : 0;
         }
+    }
+
+    private void reset() {
+        s.resetMusic();
+        rhythms.clear();
+        combo = 0;
+        nextBeatIndex = 0;
+        musicStarted = false;
+
+        double travelSeconds = TRAVEL_BEATS * 60.0 / bpm;
+        double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
+        musicStartNanos = System.nanoTime()
+                + (long) (leadInSeconds * 1_000_000_000.0);
     }
 
     @Override
@@ -262,38 +306,4 @@ public class Game extends JPanel implements Runnable, KeyListener, MouseListener
 
     }
 
-    @Override
-    public void mouseDragged(MouseEvent e) {
-
-    }
-
-    @Override
-    public void mouseMoved(MouseEvent e) {
-
-    }
-
-    @Override
-    public void mouseClicked(MouseEvent e) {
-
-    }
-
-    @Override
-    public void mousePressed(MouseEvent e) {
-
-    }
-
-    @Override
-    public void mouseReleased(MouseEvent e) {
-
-    }
-
-    @Override
-    public void mouseEntered(MouseEvent e) {
-
-    }
-
-    @Override
-    public void mouseExited(MouseEvent e) {
-
-    }
 }
