@@ -9,22 +9,24 @@ import java.util.Random;
 public class Game extends JPanel implements KeyListener {
 
     private int key, combo, beats;
-    private double bpm, beatOffsetSeconds, totalAccuracy;
-    private Random random = new Random();
+    private double bpm, beatOffsetSeconds, totalAccuracy, travelBeats = 4.0;
+    private long nextBeatIndex, musicStartNanos;
+
     private String level;
-    private ArrayList<Rhythm> rhythms = new ArrayList<>();
+    private boolean musicStarted;
+    private Random random = new Random();
+    private Sound s = new Sound();
+    private ImageIcon background = new ImageIcon("space.png");
+    
     private Rectangle t1, t2, t3, t4, t5;
+    private ArrayList<Rectangle> trackRectangles = new ArrayList<>();
+    private ArrayList<Rhythm> rhythms = new ArrayList<>();
+    
     private String[] messages = new String[5];
     private int[] alpha = new int[5];
     private Color[] colors = new Color[5];
     private Timer[] fadeTimers = new Timer[5];
-    private ArrayList<Rectangle> trackRectangles = new ArrayList<>();
-    private long nextBeatIndex;
-    private static final double TRAVEL_BEATS = 4.0;
-    private Sound s = new Sound();
-    private long musicStartNanos;
-    private boolean musicStarted;
-    private ImageIcon background = new ImageIcon("space.png");
+    
 
     public Game(BeatDetector.Result result, String musicFile)
             throws IOException, UnsupportedAudioFileException, LineUnavailableException {
@@ -79,7 +81,7 @@ public class Game extends JPanel implements KeyListener {
                 ? s.getPlaybackSeconds()
                 : (now - musicStartNanos) / 1_000_000_000.0;
         double beatInterval = 60.0 / bpm;
-        double travelSeconds = TRAVEL_BEATS * beatInterval;
+        double travelSeconds = travelBeats * beatInterval;
 
         while (true) {
             double targetSeconds = beatOffsetSeconds + nextBeatIndex * beatInterval;
@@ -302,7 +304,7 @@ public class Game extends JPanel implements KeyListener {
                 trackRectangles.add(t4);
                 trackRectangles.add(t5);
 
-                double travelSeconds = TRAVEL_BEATS * 60.0 / bpm;
+                double travelSeconds = travelBeats * 60.0 / bpm;
                 double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
                 musicStartNanos = System.nanoTime()
                         + (long) (leadInSeconds * 1_000_000_000.0);
@@ -353,7 +355,7 @@ public class Game extends JPanel implements KeyListener {
         nextBeatIndex = 0;
         musicStarted = false;
 
-        double travelSeconds = TRAVEL_BEATS * 60.0 / bpm;
+        double travelSeconds = travelBeats * 60.0 / bpm;
         double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
         musicStartNanos = System.nanoTime()
                 + (long) (leadInSeconds * 1_000_000_000.0);
