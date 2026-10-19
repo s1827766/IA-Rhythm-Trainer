@@ -8,25 +8,31 @@ import java.util.Random;
 
 public class Game extends JPanel implements KeyListener {
 
-    private int key, combo;
-    private double bpm, beatOffsetSeconds, accuracy;
+    private int key, combo, beats;
+    private double bpm, beatOffsetSeconds, totalAccuracy;
     private Random random = new Random();
     private String level;
     private ArrayList<Rhythm> rhythms = new ArrayList<>();
     private Rectangle t1, t2, t3, t4, t5;
+    private String[] messages = new String[5];
+    private int[] alpha = new int[5];
+    private Color[] colors = new Color[5];
+    private Timer[] fadeTimers = new Timer[5];
     private ArrayList<Rectangle> trackRectangles = new ArrayList<>();
     private long nextBeatIndex;
     private static final double TRAVEL_BEATS = 4.0;
     private Sound s = new Sound();
     private long musicStartNanos;
     private boolean musicStarted;
+    private ImageIcon background = new ImageIcon("space.png");
 
     public Game(BeatDetector.Result result, String musicFile)
             throws IOException, UnsupportedAudioFileException, LineUnavailableException {
         this.addKeyListener(this);
         key = -1;
         combo = 0;
-        accuracy = 0;
+        totalAccuracy = 0;
+        beats = 0;
         bpm = result.bpm;
         // bpm = 108.0;
         beatOffsetSeconds = result.offsetSeconds;
@@ -110,9 +116,9 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public void drawStart(Graphics g2d) {
-        // g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
         g2d.setColor(Color.BLACK);
         g2d.fillRect(0, 0, getWidth(), getHeight());
+        g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
         g2d.setColor(new Color(100, 225, 247));
         g2d.setFont(new Font("Courier New", Font.BOLD, 150));
         g2d.drawString("Rhythm Trainer", (getWidth() - g2d.getFontMetrics().stringWidth("Rhythm Trainer")) / 2, 400);
@@ -125,14 +131,18 @@ public class Game extends JPanel implements KeyListener {
     public void drawGame(Graphics g2d) {
         g2d.setColor(Color.BLACK);
         g2d.fillRect(0, 0, getWidth(), getHeight());
+        g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
         g2d.setColor(Color.WHITE);
-        g2d.setFont(new Font("Courier New", Font.BOLD, 60));
+        g2d.setFont(new Font("Courier New", Font.BOLD, 40));
 
         g2d.drawString("Combo: " + combo, 50, 100);
+        g2d.drawString("Accuracy: " + (beats > 0 ? String.format("%.2f", totalAccuracy / beats) : "--.--") + "%", 50,
+                150);
 
         drawRhythms(g2d, rhythms);
         drawTrack(g2d);
         drawRects(g2d);
+        drawIndicators(g2d);
     }
 
     public void drawTrack(Graphics g2d) {
@@ -172,17 +182,29 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public boolean checkHit(Rectangle hitRect) {
-        for (Rhythm rhythm : rhythms) {
+        for (int i = 0; i < rhythms.size(); i++) {
+            Rhythm rhythm = rhythms.get(i);
             Rectangle rhythmRect = new Rectangle(
                     rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
 
             if (rhythmRect.intersects(hitRect)) {
-                rhythms.remove(rhythm);
+                totalAccuracy += accuracy(rhythmRect, hitRect);
+                beats++;
+                showIndicator(trackRectangles.indexOf(hitRect), accuracy(rhythmRect, hitRect));
+                rhythms.remove(i);
                 return true;
             }
-
         }
+        beats++;
+        showIndicator(trackRectangles.indexOf(hitRect), 0);
         return false;
+    }
+
+    private double accuracy(Rectangle rhythmRect, Rectangle hitRect) {
+        double distance = Math.abs(rhythmRect.getCenterY() - hitRect.getCenterY());
+        double maxDistance = (rhythmRect.height + hitRect.height) / 2.0;
+
+        return Math.max(0, (1.0 - distance / maxDistance) * 100.0);
     }
 
     public void checkMiss(Rectangle hitRect) {
@@ -190,21 +212,29 @@ public class Game extends JPanel implements KeyListener {
             Rhythm rhythm = rhythms.get(i);
             if (rhythm.getY() > hitRect.getY() + hitRect.getHeight()) {
                 rhythms.remove(i);
+                beats++;
                 i--;
                 combo = 0;
             }
         }
     }
 
-    public int accuracy(Rectangle hitRect) {
-        for (Rhythm rhythm : rhythms) {
-            Rectangle rhythmRect = new Rectangle(
-                    rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
-            int rhythmCenterY = rhythmRect.y + rhythmRect.height / 2;
-            int hitCenterY = hitRect.y + hitRect.height / 2;
-            return Math.abs(rhythmCenterY - hitCenterY);
+    public void drawIndicators(Graphics g2d) {
+        g2d.setFont(new Font("Courier New", Font.BOLD, 24));
+        FontMetrics metrics = g2d.getFontMetrics();
+
+        for (int i = 0; i < trackRectangles.size(); i++) {
+            if (alpha[i] == 0 || messages[i] == null) {
+                continue;
+            }
+
+            Rectangle track = trackRectangles.get(i);
+            Color color = colors[i];
+            g2d.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha[i]));
+
+            int x = track.x + (track.width - metrics.stringWidth(messages[i])) / 2;
+            g2d.drawString(messages[i], x, track.y - 10);
         }
-        return -1;
     }
 
     public Color getRandomColor() {
@@ -212,6 +242,38 @@ public class Game extends JPanel implements KeyListener {
         int g = (int) (Math.random() * 225 + 30);
         int b = (int) (Math.random() * 225 + 30);
         return new Color(r, g, b);
+    }
+
+    public void showIndicator(int lane, double accuracy) {
+        if (accuracy >= 90) {
+            messages[lane] = "Perfect";
+            colors[lane] = Color.CYAN;
+        } else if (accuracy >= 50) {
+            messages[lane] = "Good";
+            colors[lane] = Color.GREEN;
+        } else if (accuracy > 0) {
+            messages[lane] = "OK";
+            colors[lane] = Color.YELLOW;
+        } else {
+            messages[lane] = "Miss";
+            colors[lane] = Color.RED;
+        }
+
+        alpha[lane] = 255;
+
+        if (fadeTimers[lane] != null) {
+            fadeTimers[lane].stop();
+        }
+
+        fadeTimers[lane] = new Timer(30, e -> {
+            alpha[lane] = Math.max(0, alpha[lane] - 8);
+            repaint();
+
+            if (alpha[lane] == 0) {
+                fadeTimers[lane].stop();
+            }
+        });
+        fadeTimers[lane].start();
     }
 
     @Override
