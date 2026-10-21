@@ -7,14 +7,12 @@ public class Sound {
 	private Clip clip;
 	private Clip loopClip;
 
-	public void loadMusic(String musicfile)
-			throws IOException, UnsupportedAudioFileException, LineUnavailableException {
+	public void loadMusic(String musicfile) throws IOException, UnsupportedAudioFileException, LineUnavailableException {
 		if (clip != null) {
 			clip.close();
 		}
 
-		try (AudioInputStream inputStream =
-				AudioSystem.getAudioInputStream(new File(musicfile))) {
+		try (AudioInputStream inputStream = AudioSystem.getAudioInputStream(new File(musicfile))) {
 			clip = AudioSystem.getClip();
 			clip.open(inputStream);
 		}
@@ -100,5 +98,9 @@ public class Sound {
 
 	public double getPlaybackSeconds() {
 		return clip == null ? 0 : clip.getMicrosecondPosition() / 1_000_000.0;
+	}
+
+	public double getMusicLengthSeconds() {
+		return clip == null ? 0 : clip.getMicrosecondLength() / 1_000_000.0;
 	}
 }

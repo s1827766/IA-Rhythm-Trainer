@@ -61,6 +61,7 @@ public class Rhythm {
     public Color getColor() {
         return color;
     }
+
     public void setColor(Color c) {
         this.color = c;
     }

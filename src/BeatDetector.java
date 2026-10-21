@@ -18,23 +18,14 @@ public class BeatDetector {
         }
     }
 
-    public static Result analyze(File file)
-            throws IOException, UnsupportedAudioFileException, LineUnavailableException {
+    public static Result analyze(File file) throws IOException, UnsupportedAudioFileException, LineUnavailableException {
 
         try (AudioInputStream source = AudioSystem.getAudioInputStream(file)) {
             float sampleRate = source.getFormat().getSampleRate();
 
-            AudioFormat monoPcm16 = new AudioFormat(
-                    AudioFormat.Encoding.PCM_SIGNED,
-                    sampleRate,
-                    16,
-                    1,
-                    2,
-                    sampleRate,
-                    false);
+            AudioFormat monoPcm16 = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, sampleRate, 16, 1, 2, sampleRate, false);
 
-            try (AudioInputStream pcm =
-                         AudioSystem.getAudioInputStream(monoPcm16, source)) {
+            try (AudioInputStream pcm = AudioSystem.getAudioInputStream(monoPcm16, source)) {
                 byte[] audio = readAll(pcm);
                 return estimate(audio, sampleRate);
             }
@@ -59,8 +50,7 @@ public class BeatDetector {
 
             for (int sampleIndex = start; sampleIndex < end; sampleIndex++) {
                 int byteIndex = sampleIndex * 2;
-                short sample = (short) ((audio[byteIndex + 1] << 8)
-                        | (audio[byteIndex] & 0xff));
+                short sample = (short) ((audio[byteIndex + 1] << 8) | (audio[byteIndex] & 0xff));
                 double value = sample / 32768.0;
                 sumSquares += value * value;
             }
