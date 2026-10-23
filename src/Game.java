@@ -11,6 +11,7 @@ public class Game extends JPanel implements KeyListener {
     private int key, combo, highestCombo, beats, score;
     private double bpm, beatOffsetSeconds, totalAccuracy, travelBeats = 4.0;
     private long nextBeatIndex, musicStartNanos;
+    private double[] beatTimes;
 
     private String level, selectedSong = "Unknown";
     private boolean musicStarted;
@@ -36,8 +37,8 @@ public class Game extends JPanel implements KeyListener {
         beats = 0;
         score = 0;
         bpm = result.bpm;
-        // bpm = 108.0;
         beatOffsetSeconds = result.offsetSeconds;
+        beatTimes = result.beatTimes.clone();
         level = "start";
         selectedSong = musicFile.substring(6, musicFile.length() - 4);
         s.loadMusic(musicFile);
@@ -65,9 +66,7 @@ public class Game extends JPanel implements KeyListener {
                 checkMiss(trackRect);
             }
 
-            if (rhythms.isEmpty() && musicStarted && s.getPlaybackSeconds() >= s.getMusicLengthSeconds()) {
-                level = "results";
-            }
+            checkEnd();
 
             break;
 
@@ -90,7 +89,13 @@ public class Game extends JPanel implements KeyListener {
         double travelSeconds = travelBeats * beatInterval;
 
         while (true) {
-            double targetSeconds = beatOffsetSeconds + nextBeatIndex * beatInterval;
+            if (beatTimes.length > 0 && nextBeatIndex >= beatTimes.length) {
+                break;
+            }
+
+            double targetSeconds = beatTimes.length > 0
+                    ? beatTimes[(int) nextBeatIndex]
+                    : beatOffsetSeconds + nextBeatIndex * beatInterval;
             if (targetSeconds - travelSeconds > songSeconds) {
                 break;
             }
@@ -122,21 +127,26 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public void drawStart(Graphics g2d) {
-        g2d.setColor(Color.BLACK);
-        g2d.fillRect(0, 0, getWidth(), getHeight());
         g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
         g2d.setColor(new Color(100, 225, 247));
         g2d.setFont(new Font("Courier New", Font.BOLD, 150));
         g2d.drawString("Rhythm Trainer", (getWidth() - g2d.getFontMetrics().stringWidth("Rhythm Trainer")) / 2, 400);
+        g2d.setColor(Color.ORANGE);
+        g2d.setFont(new Font("Courier New", Font.BOLD, 30));
+        g2d.drawString("Selected Song: " + selectedSong, (getWidth() - g2d.getFontMetrics().stringWidth("Selected Song: " + selectedSong)) / 2, getHeight() - 305);
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
-        g2d.drawString("Press Space to start", (getWidth() - g2d.getFontMetrics().stringWidth("Press Space to start")) / 2, 700);
-        g2d.setFont(new Font("Courier New", Font.BOLD, 30));
-        g2d.drawString("Selected Song: " + selectedSong, (getWidth() - g2d.getFontMetrics().stringWidth("Selected Song: " + selectedSong)) / 2, 500);
+        g2d.drawString("Press Space to start", (getWidth() - g2d.getFontMetrics().stringWidth("Press Space to start")) / 2, getHeight() - 250);
     }
 
     public void drawGame(Graphics g2d) {
         g2d.drawImage(background.getImage(), 0, 0, getWidth(), getHeight(), this);
+
+        drawRhythms(g2d, rhythms);
+        drawTrack(g2d);
+        drawRects(g2d);
+        drawIndicators(g2d);
+
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 30));
 
@@ -152,11 +162,6 @@ public class Game extends JPanel implements KeyListener {
 
         g2d.setColor(Color.WHITE);
         g2d.drawString("Combo: " + combo, 50, 180);
-
-        drawRhythms(g2d, rhythms);
-        drawTrack(g2d);
-        drawRects(g2d);
-        drawIndicators(g2d);
     }
 
     public void drawTrack(Graphics g2d) {
@@ -207,14 +212,14 @@ public class Game extends JPanel implements KeyListener {
                 (getWidth() - g2d.getFontMetrics().stringWidth("Final Accuracy: " + (beats > 0 ? String.format("%.2f", totalAccuracy / beats) : "--.--") + "%")) / 4, 450);
         g2d.drawString("Highest Combo: " + highestCombo, (getWidth() - g2d.getFontMetrics().stringWidth("Highest Combo: " + highestCombo)) / 4, 500);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
-        g2d.drawString("Press R to restart", (getWidth() - g2d.getFontMetrics().stringWidth("Press R to restart")) / 2, 800);
+        g2d.drawString("Press R to restart", (getWidth() - g2d.getFontMetrics().stringWidth("Press R to restart")) / 2, getHeight() - 100);
         g2d.drawString("Rank", 3 * (getWidth() - g2d.getFontMetrics().stringWidth("Rank")) / 4, 350);
 
         String rank = getRank();
         Color rankColor = getRankColor(rank);
         g2d.setColor(rankColor);
         g2d.setFont(new Font("Courier New", Font.BOLD, 300));
-        g2d.drawString(rank, 3 * (getWidth() - g2d.getFontMetrics().stringWidth(rank)) / 4, 580);
+        g2d.drawString(rank, 3 * (getWidth() - g2d.getFontMetrics().stringWidth(rank)) / 4 + 10, 580);
     }
 
     public void createTracks() {
@@ -269,6 +274,12 @@ public class Game extends JPanel implements KeyListener {
                 score -= 30;
                 showIndicator(trackRectangles.indexOf(hitRect), 0);
             }
+        }
+    }
+
+    public void checkEnd() {
+        if (musicStarted && s.getPlaybackSeconds() >= s.getMusicLengthSeconds()) {
+            level = "results";
         }
     }
 
@@ -378,7 +389,7 @@ public class Game extends JPanel implements KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {
         key = e.getKeyCode();
-        // System.out.println(key);
+        System.out.println(key);
 
         if (level == "start") {
             if (key == 32) {
@@ -441,13 +452,21 @@ public class Game extends JPanel implements KeyListener {
         if (level == "results") {
             if (key == 82) {
                 key = -1;
-                reset();
-                level = "start";
+                Window window = SwingUtilities.getWindowAncestor(this);
+                if (window != null) {
+                    window.dispose();
+                }
+                Main.selectSongAndStart();
+                return;
             }
 
-            if (key == 32) {
-                totalAccuracy += 10;
+            if (key == 61) {
+                totalAccuracy += 30;
             }
+            if (key == 45) {
+                totalAccuracy -= 30;
+            }
+
         }
     }
 

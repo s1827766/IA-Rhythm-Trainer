@@ -1,7 +1,6 @@
 import javax.sound.sampled.*;
 import java.io.*;
 
-@SuppressWarnings("unused")
 public class Sound {
 
 	private Clip clip;

@@ -30,7 +30,7 @@ public class Main extends JFrame {
         SwingUtilities.invokeLater(Main::selectSongAndStart);
     }
 
-    private static void selectSongAndStart() {
+    public static void selectSongAndStart() {
         File songsFolder = new File("songs");
         File[] songs = songsFolder.listFiles(file -> file.isFile() && (file.getName().toLowerCase(Locale.ROOT).endsWith(".wav")));
 
@@ -40,7 +40,7 @@ public class Main extends JFrame {
         }
 
         Arrays.sort(songs, (first, second) -> first.getName().compareToIgnoreCase(second.getName()));
-        String[] songNames = Arrays.stream(songs).map(File::getName).toArray(String[]::new);
+        String[] songNames = Arrays.stream(songs).map(file -> file.getName().replaceFirst("(?i)\\.wav$", "")).toArray(String[]::new);
 
         JList<String> songList = new JList<>(songNames);
         songList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -63,7 +63,7 @@ public class Main extends JFrame {
                 continue;
             }
 
-            File selectedSong = new File(songsFolder, selectedName);
+            File selectedSong = songs[songList.getSelectedIndex()];
             try {
                 BeatDetector.Result detected = BeatDetector.analyze(selectedSong);
                 Double selectedBpm = askForBpm(detected.bpm);
@@ -72,7 +72,7 @@ public class Main extends JFrame {
                     continue;
                 }
 
-                BeatDetector.Result gameSettings = new BeatDetector.Result(selectedBpm, detected.offsetSeconds);
+                BeatDetector.Result gameSettings = detected.withBpm(selectedBpm);
 
                 System.out.printf("Song: %s%n", selectedName);
                 System.out.printf("Detected BPM: %.1f%n", detected.bpm);

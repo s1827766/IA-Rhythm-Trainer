@@ -1,6 +1,7 @@
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import javax.sound.sampled.*;
 
 public class BeatDetector {
@@ -11,10 +12,25 @@ public class BeatDetector {
     public static class Result {
         public final double bpm;
         public final double offsetSeconds;
+        public final double[] beatTimes;
 
         public Result(double bpm, double offsetSeconds) {
+            this(bpm, offsetSeconds, new double[0]);
+        }
+
+        public Result(double bpm, double offsetSeconds, double[] beatTimes) {
             this.bpm = bpm;
             this.offsetSeconds = offsetSeconds;
+            this.beatTimes = beatTimes.clone();
+        }
+
+        public Result withBpm(double adjustedBpm) {
+            double scale = bpm / adjustedBpm;
+            double[] adjustedBeatTimes = new double[beatTimes.length];
+            for (int i = 0; i < beatTimes.length; i++) {
+                adjustedBeatTimes[i] = offsetSeconds + (beatTimes[i] - offsetSeconds) * scale;
+            }
+            return new Result(adjustedBpm, offsetSeconds, adjustedBeatTimes);
         }
     }
 
@@ -34,6 +50,7 @@ public class BeatDetector {
 
     private static Result estimate(byte[] audio, float sampleRate) {
         int samplesPerWindow = Math.max(1, (int) (sampleRate * WINDOW_SECONDS));
+        double windowSeconds = samplesPerWindow / sampleRate;
         int sampleCount = audio.length / 2;
         int windowCount = sampleCount / samplesPerWindow;
 
@@ -68,8 +85,8 @@ public class BeatDetector {
         }
         onsetMean /= windowCount;
 
-        int minLag = (int) (60.0 / (MAX_BPM * WINDOW_SECONDS));
-        int maxLag = (int) (60.0 / (MIN_BPM * WINDOW_SECONDS));
+        int minLag = (int) (60.0 / (MAX_BPM * windowSeconds));
+        int maxLag = (int) (60.0 / (MIN_BPM * windowSeconds));
         maxLag = Math.min(maxLag, windowCount / 2);
 
         int bestLag = -1;
@@ -111,9 +128,56 @@ public class BeatDetector {
             }
         }
 
-        double bpm = 60.0 / (bestLag * WINDOW_SECONDS);
-        double offsetSeconds = bestPhase * WINDOW_SECONDS;
-        return new Result(bpm, offsetSeconds);
+        double bpm = 60.0 / (bestLag * windowSeconds);
+        double[] beatTimes = trackBeats(onset, bestLag, bestPhase, onsetMean, windowSeconds);
+        double offsetSeconds = beatTimes.length == 0 ? bestPhase * windowSeconds : beatTimes[0];
+        return new Result(bpm, offsetSeconds, beatTimes);
+    }
+
+    private static double[] trackBeats(double[] onset, int initialLag, int initialPhase, double onsetMean, double windowSeconds) {
+        ArrayList<Double> beats = new ArrayList<>();
+        double interval = initialLag * windowSeconds;
+        double targetSeconds = initialPhase * windowSeconds;
+        double previousOnsetSeconds = Double.NaN;
+
+        while (targetSeconds < onset.length * windowSeconds) {
+            int center = (int) Math.round(targetSeconds / windowSeconds);
+            int searchRadius = Math.max(1, (int) Math.round(interval * 0.18 / windowSeconds));
+            int start = Math.max(0, center - searchRadius);
+            int end = Math.min(onset.length - 1, center + searchRadius);
+            int strongestFrame = center;
+            double strongestOnset = 0;
+
+            for (int frame = start; frame <= end; frame++) {
+                if (onset[frame] > strongestOnset) {
+                    strongestOnset = onset[frame];
+                    strongestFrame = frame;
+                }
+            }
+
+            if (strongestOnset >= onsetMean * 1.5 && strongestOnset > 0) {
+                double detectedSeconds = strongestFrame * windowSeconds;
+                double correction = (detectedSeconds - targetSeconds) * 0.4;
+                targetSeconds += Math.max(-interval * 0.08, Math.min(interval * 0.08, correction));
+
+                if (!Double.isNaN(previousOnsetSeconds)) {
+                    double observedInterval = detectedSeconds - previousOnsetSeconds;
+                    if (observedInterval >= interval * 0.8 && observedInterval <= interval * 1.2) {
+                        interval += (observedInterval - interval) * 0.12;
+                    }
+                }
+                previousOnsetSeconds = detectedSeconds;
+            }
+
+            beats.add(targetSeconds);
+            targetSeconds += interval;
+        }
+
+        double[] beatTimes = new double[beats.size()];
+        for (int i = 0; i < beats.size(); i++) {
+            beatTimes[i] = beats.get(i);
+        }
+        return beatTimes;
     }
 
     private static byte[] readAll(AudioInputStream stream) throws IOException {
