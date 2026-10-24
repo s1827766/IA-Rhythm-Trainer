@@ -89,10 +89,10 @@ public class Main extends JFrame {
     }
 
     private static Double askForBpm(double detectedBpm) {
-        JTextField bpmField = new JTextField(String.format(Locale.ROOT, "%.1f", detectedBpm), 10);
+        JTextField bpmField = new JTextField(String.format(Locale.ROOT, "%.2f", detectedBpm), 10);
 
         JPanel panel = new JPanel(new GridLayout(0, 1, 0, 6));
-        panel.add(new JLabel(String.format(Locale.ROOT, "Detected BPM: %.1f", detectedBpm)));
+        panel.add(new JLabel(String.format(Locale.ROOT, "Detected BPM: %.2f", detectedBpm)));
         panel.add(new JLabel("BPM to use (edit if needed):"));
         panel.add(bpmField);
 

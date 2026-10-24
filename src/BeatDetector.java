@@ -111,73 +111,54 @@ public class BeatDetector {
             throw new IllegalArgumentException("Could not estimate a beat interval.");
         }
 
-        // Find the strongest repeating phase within the estimated beat interval.
-        int bestPhase = 0;
-        double strongestPhase = Double.NEGATIVE_INFINITY;
+        // bestLag is only accurate to about +-1 BPM, so refine it using the whole song.
+        double lowBpm = 60.0 / ((bestLag + 1) * windowSeconds);
+        double highBpm = 60.0 / (Math.max(1, bestLag - 1) * windowSeconds);
+        double[] best = fit(onset, windowSeconds, lowBpm, highBpm, 0.005);
 
-        for (int phase = 0; phase < bestLag; phase++) {
-            double score = 0;
-
-            for (int i = phase; i < windowCount; i += bestLag) {
-                score += onset[i];
-            }
-
-            if (score > strongestPhase) {
-                strongestPhase = score;
-                bestPhase = phase;
+        // Autocorrelation often lands on half the real tempo. Prefer double unless it
+        // fits much worse.
+        if (best[0] * 2 <= MAX_BPM) {
+            double[] faster = fit(onset, windowSeconds, best[0] * 2 - 0.1, best[0] * 2 + 0.1, 0.005);
+            if (faster[2] >= best[2] * 0.85) {
+                best = faster;
             }
         }
 
-        double bpm = 60.0 / (bestLag * windowSeconds);
-        double[] beatTimes = trackBeats(onset, bestLag, bestPhase, onsetMean, windowSeconds);
-        double offsetSeconds = beatTimes.length == 0 ? bestPhase * windowSeconds : beatTimes[0];
-        return new Result(bpm, offsetSeconds, beatTimes);
+        return new Result(best[0], best[1]);
     }
 
-    private static double[] trackBeats(double[] onset, int initialLag, int initialPhase, double onsetMean, double windowSeconds) {
-        ArrayList<Double> beats = new ArrayList<>();
-        double interval = initialLag * windowSeconds;
-        double targetSeconds = initialPhase * windowSeconds;
-        double previousOnsetSeconds = Double.NaN;
+    // Tries many BPM / start-time combinations and returns {bpm, offsetSeconds,
+    // score}
+    // for the grid that lands on the strongest onsets across the WHOLE song.
+    private static double[] fit(double[] onset, double windowSeconds, double minBpm, double maxBpm, double bpmStep) {
+        double bestScore = -1;
+        double bestBpm = minBpm;
+        double bestOffset = 0;
 
-        while (targetSeconds < onset.length * windowSeconds) {
-            int center = (int) Math.round(targetSeconds / windowSeconds);
-            int searchRadius = Math.max(1, (int) Math.round(interval * 0.18 / windowSeconds));
-            int start = Math.max(0, center - searchRadius);
-            int end = Math.min(onset.length - 1, center + searchRadius);
-            int strongestFrame = center;
-            double strongestOnset = 0;
+        for (double bpm = minBpm; bpm <= maxBpm; bpm += bpmStep) {
+            double interval = 60.0 / bpm / windowSeconds; // beat spacing in windows (not rounded)
 
-            for (int frame = start; frame <= end; frame++) {
-                if (onset[frame] > strongestOnset) {
-                    strongestOnset = onset[frame];
-                    strongestFrame = frame;
+            for (double phase = 0; phase < interval; phase += 0.5) {
+                double score = 0;
+                int beats = 0;
+
+                for (double pos = phase; pos < onset.length - 1; pos += interval) {
+                    score += onset[(int) Math.round(pos)];
+                    beats++;
+                }
+
+                score /= beats;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestBpm = bpm;
+                    bestOffset = phase * windowSeconds;
                 }
             }
-
-            if (strongestOnset >= onsetMean * 1.5 && strongestOnset > 0) {
-                double detectedSeconds = strongestFrame * windowSeconds;
-                double correction = (detectedSeconds - targetSeconds) * 0.4;
-                targetSeconds += Math.max(-interval * 0.08, Math.min(interval * 0.08, correction));
-
-                if (!Double.isNaN(previousOnsetSeconds)) {
-                    double observedInterval = detectedSeconds - previousOnsetSeconds;
-                    if (observedInterval >= interval * 0.8 && observedInterval <= interval * 1.2) {
-                        interval += (observedInterval - interval) * 0.12;
-                    }
-                }
-                previousOnsetSeconds = detectedSeconds;
-            }
-
-            beats.add(targetSeconds);
-            targetSeconds += interval;
         }
 
-        double[] beatTimes = new double[beats.size()];
-        for (int i = 0; i < beats.size(); i++) {
-            beatTimes[i] = beats.get(i);
-        }
-        return beatTimes;
+        return new double[] { bestBpm, bestOffset, bestScore };
     }
 
     private static byte[] readAll(AudioInputStream stream) throws IOException {

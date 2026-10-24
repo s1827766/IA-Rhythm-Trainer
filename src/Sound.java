@@ -5,6 +5,7 @@ public class Sound {
 
 	private Clip clip;
 	private Clip loopClip;
+	private long startNanos;
 
 	public void loadMusic(String musicfile) throws IOException, UnsupportedAudioFileException, LineUnavailableException {
 		if (clip != null) {
@@ -18,11 +19,13 @@ public class Sound {
 	}
 
 	public void playPreparedMusic() {
-		if (clip == null) {
-			throw new IllegalStateException("Music has not been prepared.");
-		}
 		clip.setFramePosition(0);
 		clip.start();
+		startNanos = System.nanoTime();
+	}
+
+	public double getPlaybackSeconds() {
+		return clip == null ? 0 : (System.nanoTime() - startNanos) / 1_000_000_000.0;
 	}
 
 	public void resetMusic() {
@@ -93,10 +96,6 @@ public class Sound {
 			System.out.println(e);
 		}
 
-	}
-
-	public double getPlaybackSeconds() {
-		return clip == null ? 0 : clip.getMicrosecondPosition() / 1_000_000.0;
 	}
 
 	public double getMusicLengthSeconds() {
