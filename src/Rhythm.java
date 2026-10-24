@@ -6,7 +6,7 @@ public class Rhythm {
     private ImageIcon image;
     private Color color;
     private double targetSeconds;
-    private boolean fading;
+    private boolean fading, hit;
 
     public Rhythm() {
         x = 0;
@@ -81,5 +81,13 @@ public class Rhythm {
 
     public void setFading(boolean fading) {
         this.fading = fading;
+    }
+
+    public boolean isHit() {
+        return hit;
+    }
+
+    public void setHit(boolean hit) {
+        this.hit = hit;
     }
 }

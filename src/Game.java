@@ -3,18 +3,19 @@ import javax.sound.sampled.*;
 import java.awt.*;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.awt.event.*;
 import java.util.Random;
 
 public class Game extends JPanel implements KeyListener {
 
     private int key, combo, highestCombo, beats, score;
-    private double bpm, beatOffsetSeconds, totalAccuracy, travelBeats, accuracy;
+    private double bpm, beatOffsetSeconds, accuracy, totalAccuracy, travelBeats, latency, hitwindow;
     private long nextBeatIndex, musicStartNanos;
-    private double[] beatTimes;
 
     private String level, selectedSong;
-    private boolean musicStarted;
+    private boolean musicStarted, calibrating, timingCalibrated;
+    private ArrayList<Double> calibrationTaps = new ArrayList<>();
     private Random random = new Random();
     private Sound s = new Sound();
     private ImageIcon background = new ImageIcon("space.png");
@@ -36,13 +37,13 @@ public class Game extends JPanel implements KeyListener {
         highestCombo = 0;
         beats = 0;
         score = 0;
+        latency = 0;
 
         bpm = result.bpm;
         beatOffsetSeconds = result.offsetSeconds;
         totalAccuracy = 0;
         travelBeats = 4.0;
-
-        beatTimes = result.beatTimes.clone();
+        hitwindow = 0.2; // 200 ms hit window
 
         level = "start";
         selectedSong = musicFile.substring(6, musicFile.length() - 4);
@@ -78,44 +79,45 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public void updateRhythms() {
-        long now = System.nanoTime();
-        if (!musicStarted && now >= musicStartNanos) {
+        if (!musicStarted && System.nanoTime() >= musicStartNanos) {
             s.playPreparedMusic();
             musicStarted = true;
         }
 
-        double songSeconds = musicStarted ? s.getPlaybackSeconds() : (now - musicStartNanos) / 1_000_000_000.0;
+        double songSeconds = getSongSeconds();
         double beatInterval = 60.0 / bpm;
         double travelSeconds = travelBeats * beatInterval;
 
         while (true) {
-            if (beatTimes.length > 0 && nextBeatIndex >= beatTimes.length) {
+            double targetSeconds = beatOffsetSeconds + nextBeatIndex * beatInterval;
+            if (targetSeconds > s.getMusicLengthSeconds() || targetSeconds - travelSeconds > songSeconds) {
                 break;
             }
-
-            double targetSeconds = beatTimes.length > 0 ? beatTimes[(int) nextBeatIndex] : beatOffsetSeconds + nextBeatIndex * beatInterval;
-            if (targetSeconds - travelSeconds > songSeconds) {
-                break;
-            }
-
             if (targetSeconds > songSeconds) {
                 int randX = random.nextInt(5) * 200 + (getWidth() / 2) - 500;
                 rhythms.add(new Rhythm(randX, 0, 200, 45, getRandomColor(), targetSeconds));
             }
-
             nextBeatIndex++;
         }
 
-        double speed = (t1.y - 45) / travelSeconds;
+        double hitY = t1.y + t1.height / 2.0; // where a note's CENTER sits at its beat time
+        double speed = hitY / travelSeconds; // pixels per second
         java.util.Iterator<Rhythm> iterator = rhythms.iterator();
         while (iterator.hasNext()) {
             Rhythm rhythm = iterator.next();
             double secondsUntilHit = rhythm.getTargetSeconds() - songSeconds;
-            rhythm.setY((int) Math.round(t1.y - rhythm.getH() - secondsUntilHit * speed));
+            if (!rhythm.isHit()) {
+                rhythm.setY((int) Math.round(hitY - rhythm.getH() / 2.0 - secondsUntilHit * speed));
+            }
             if (secondsUntilHit < -beatInterval) {
                 iterator.remove();
             }
         }
+    }
+
+    private double getSongSeconds() {
+        double seconds = musicStarted ? s.getPlaybackSeconds() : (System.nanoTime() - musicStartNanos) / 1_000_000_000.0;
+        return seconds - latency;
     }
 
     @Override
@@ -133,11 +135,18 @@ public class Game extends JPanel implements KeyListener {
 
         g2d.setColor(Color.ORANGE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 30));
-        g2d.drawString("Selected Song: " + selectedSong, (getWidth() - g2d.getFontMetrics().stringWidth("Selected Song: " + selectedSong)) / 2, getHeight() - 305);
+        String selectedSongText = "Selected Song: " + selectedSong;
+        g2d.drawString(selectedSongText, (getWidth() - g2d.getFontMetrics().stringWidth(selectedSongText)) / 2, getHeight() - 305);
 
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
-        g2d.drawString("Press Space to start", (getWidth() - g2d.getFontMetrics().stringWidth("Press Space to start")) / 2, getHeight() - 250);
+        String instruction = "Press Space to start";
+        g2d.drawString(instruction, (getWidth() - g2d.getFontMetrics().stringWidth(instruction)) / 2, getHeight() - 250);
+
+        g2d.setFont(new Font("Courier New", Font.BOLD, 30));
+        String calibrationStatus = calibrating ? "Tap Space with the beat; press Enter when done (" + calibrationTaps.size() + " taps)"
+                : timingCalibrated ? String.format("Timing offset: %.0f ms | Press C to recalibrate", latency * 1000) : "Press C to calibrate";
+        g2d.drawString(calibrationStatus, (getWidth() - g2d.getFontMetrics().stringWidth(calibrationStatus)) / 2, getHeight() - 205);
     }
 
     public void drawGame(Graphics g2d) {
@@ -244,29 +253,24 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public boolean checkHit(Rectangle hitRect) {
+        double songSeconds = getSongSeconds();
         for (int i = 0; i < rhythms.size(); i++) {
             Rhythm rhythm = rhythms.get(i);
-            Rectangle rhythmRect = new Rectangle(rhythm.getX(), rhythm.getY(), rhythm.getW(), rhythm.getH());
+            double error = Math.abs(rhythm.getTargetSeconds() - songSeconds);
 
-            if (rhythmRect.intersects(hitRect)) {
-                totalAccuracy += accuracy(rhythmRect, hitRect);
+            if (rhythm.getX() == hitRect.x && error < hitwindow) {
+                totalAccuracy += (1 - error / hitwindow) * 100;
                 beats++;
-                rhythm.setDy(0);
+                rhythm.setHit(true);
+                rhythm.setFading(true);
                 fadeRhythm(rhythm, 2);
-                showIndicator(trackRectangles.indexOf(hitRect), accuracy(rhythmRect, hitRect));
+                showIndicator(trackRectangles.indexOf(hitRect), (1 - error / hitwindow) * 100);
                 return true;
             }
         }
         beats++;
         showIndicator(trackRectangles.indexOf(hitRect), 0);
         return false;
-    }
-
-    public double accuracy(Rectangle rhythmRect, Rectangle hitRect) {
-        double distance = Math.abs(rhythmRect.getCenterY() - hitRect.getCenterY());
-        double maxDistance = (rhythmRect.height + hitRect.height) / 2.0;
-
-        return Math.max(0, (1.0 - distance / maxDistance) * 100.0);
     }
 
     public void checkMiss() {
@@ -425,6 +429,30 @@ public class Game extends JPanel implements KeyListener {
         System.out.println(key);
 
         if (level == "start") {
+            if (calibrating) {
+                if (key == 32) {
+                    double tapTime = s.getPlaybackSeconds();
+                    if (calibrationTaps.isEmpty() || tapTime - calibrationTaps.get(calibrationTaps.size() - 1) >= 0.2) {
+                        calibrationTaps.add(tapTime);
+                    }
+                } else if (key == 10) {
+                    finishCalibration();
+                }
+                key = -1;
+                repaint();
+                return;
+            }
+
+            if (key == 67) {
+                calibrationTaps.clear();
+                s.resetMusic();
+                s.playPreparedMusic();
+                calibrating = true;
+                key = -1;
+                repaint();
+                return;
+            }
+
             if (key == 32) {
                 key = -1;
 
@@ -503,7 +531,7 @@ public class Game extends JPanel implements KeyListener {
         }
     }
 
-    private void reset() {
+    public void reset() {
         s.resetMusic();
         rhythms.clear();
         createTracks();
@@ -520,6 +548,36 @@ public class Game extends JPanel implements KeyListener {
         double travelSeconds = travelBeats * 60.0 / bpm;
         double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
         musicStartNanos = System.nanoTime() + (long) (leadInSeconds * 1_000_000_000.0);
+    }
+
+    private void finishCalibration() {
+        if (calibrationTaps.size() < 5) {
+            JOptionPane.showMessageDialog(this, "Tap at least five beats before finishing calibration.", "Not enough taps", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        double beatInterval = 60.0 / bpm;
+        double[] errors = new double[calibrationTaps.size()];
+
+        for (int i = 0; i < errors.length; i++) {
+            double sinceBeat = (calibrationTaps.get(i) - beatOffsetSeconds) % beatInterval;
+            if (sinceBeat < 0) {
+                sinceBeat += beatInterval;
+            }
+            if (sinceBeat > beatInterval / 2) {
+                sinceBeat -= beatInterval;
+            }
+            errors[i] = sinceBeat;
+        }
+
+        Arrays.sort(errors);
+        latency = errors[errors.length / 2];
+
+        s.resetMusic();
+        calibrating = false;
+        timingCalibrated = true;
+        calibrationTaps.clear();
+        repaint();
     }
 
     @Override
