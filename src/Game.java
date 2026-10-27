@@ -318,7 +318,7 @@ public class Game extends JPanel implements KeyListener {
         double songSeconds = getSongSeconds();
         for (int i = 0; i < rhythms.size(); i++) {
             Rhythm rhythm = rhythms.get(i);
-            double error = Math.abs(rhythm.getTargetSeconds() - songSeconds);
+            double error = Math.abs(rhythm.getTars() - songSeconds);
 
             if (rhythm.getX() == hitRect.x && error < hitwindow) {
                 double offsetSeconds = songSeconds - rhythm.getTargetSeconds();
@@ -358,7 +358,7 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public void checkEnd() {
-        if (musicStarted && s.getPlaybackSeconds() >= s.getMusicLengthSeconds() + 5) {
+        if (musicStarted && s.getPlaybackSeconds() >= s.getMusicLengthSeconds() + 2) {
             level = "results";
         }
     }
