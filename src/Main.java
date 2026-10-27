@@ -109,7 +109,6 @@ public class Main extends JFrame {
                     return bpm;
                 }
             } catch (NumberFormatException e) {
-                // Show the validation message below and let the user try again.
             }
 
             JOptionPane.showMessageDialog(null, "Enter a valid BPM greater than zero.", "Invalid BPM", JOptionPane.WARNING_MESSAGE);
