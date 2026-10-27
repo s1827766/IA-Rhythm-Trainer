@@ -256,7 +256,8 @@ public class Game extends JPanel implements KeyListener {
         double songSeconds = getSongSeconds();
         for (int i = 0; i < rhythms.size(); i++) {
             Rhythm rhythm = rhythms.get(i);
-            double error = Math.abs(rhythm.getTargetSeconds() - songSeconds);
+            double timingError = songSeconds - rhythm.getTargetSeconds();
+            double error = Math.abs(timingError);
 
             if (rhythm.getX() == hitRect.x && error < hitwindow) {
                 totalAccuracy += (1 - error / hitwindow) * 100;
@@ -264,12 +265,12 @@ public class Game extends JPanel implements KeyListener {
                 rhythm.setHit(true);
                 rhythm.setFading(true);
                 fadeRhythm(rhythm, 2);
-                showIndicator(trackRectangles.indexOf(hitRect), (1 - error / hitwindow) * 100);
+                showIndicator(trackRectangles.indexOf(hitRect), (1 - error / hitwindow) * 100, timingError);
                 return true;
             }
         }
         beats++;
-        showIndicator(trackRectangles.indexOf(hitRect), 0);
+        showIndicator(trackRectangles.indexOf(hitRect), 0, 0);
         return false;
     }
 
@@ -285,7 +286,7 @@ public class Game extends JPanel implements KeyListener {
                     fadeRhythm(rhythm, 5);
                     beats++;
                     combo = 0;
-                    showIndicator(track, 0);
+                    showIndicator(track, 0, 0);
                     break;
                 }
             }
@@ -323,23 +324,31 @@ public class Game extends JPanel implements KeyListener {
         return new Color(r, g, b);
     }
 
-    public void showIndicator(int track, double accuracy) {
-        if (accuracy >= 90) {
-            messages[track] = "Perfect";
-            colors[track] = Color.CYAN;
-            score += 100;
-        } else if (accuracy >= 50) {
-            messages[track] = "Good";
-            colors[track] = Color.GREEN;
-            score += 50;
-        } else if (accuracy > 0) {
-            messages[track] = "OK";
-            colors[track] = Color.YELLOW;
-            score += 20;
-        } else {
+    public void showIndicator(int track, double accuracy, double timingError) {
+        if (accuracy <= 0) {
             messages[track] = "Miss";
             colors[track] = Color.RED;
             score -= 30;
+        } else if (Math.abs(timingError) <= 0.01) {
+            messages[track] = "Perfect";
+            colors[track] = Color.CYAN;
+        } else if (Math.abs(timingError) <= 0.025) {
+            messages[track] = "Good";
+            colors[track] = Color.GREEN;
+        } else if (Math.abs(timingError) >= 0.1) {
+            messages[track] = timingError < 0 ? "Super Early!" : "Super Late!";
+            colors[track] = Color.ORANGE;
+        } else {
+            messages[track] = timingError < 0 ? "Early!" : "Late!";
+            colors[track] = Color.YELLOW;
+        }
+
+        if (accuracy >= 90) {
+            score += 100;
+        } else if (accuracy >= 50) {
+            score += 50;
+        } else if (accuracy > 0) {
+            score += 20;
         }
 
         alpha[track] = 255;
