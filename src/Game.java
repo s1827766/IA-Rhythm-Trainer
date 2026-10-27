@@ -491,23 +491,20 @@ public class Game extends JPanel implements KeyListener {
     public void keyPressed(KeyEvent e) {
         key = e.getKeyCode();
 
-        if ("start".equals(level)) {
+        if (level == "start") {
             if (key == 49) {
                 difficulty = 1;
                 key = -1;
-                repaint();
                 return;
             }
             if (key == 50) {
                 difficulty = 2;
                 key = -1;
-                repaint();
                 return;
             }
             if (key == 51) {
                 difficulty = 3;
                 key = -1;
-                repaint();
                 return;
             }
 
@@ -521,7 +518,6 @@ public class Game extends JPanel implements KeyListener {
                     finishCalibration();
                 }
                 key = -1;
-                repaint();
                 return;
             }
 
@@ -531,7 +527,6 @@ public class Game extends JPanel implements KeyListener {
                 s.playPreparedMusic();
                 calibrating = true;
                 key = -1;
-                repaint();
                 return;
             }
 
@@ -552,7 +547,7 @@ public class Game extends JPanel implements KeyListener {
             }
         }
 
-        if ("game".equals(level)) {
+        if (level == "game") {
             Rectangle target;
 
             switch (key) {
@@ -592,7 +587,7 @@ public class Game extends JPanel implements KeyListener {
             }
         }
 
-        if ("results".equals(level)) {
+        if (level == "results") {
             if (key == 82) {
                 key = -1;
                 Window window = SwingUtilities.getWindowAncestor(this);
