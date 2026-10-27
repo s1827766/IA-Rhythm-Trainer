@@ -9,12 +9,8 @@ import java.util.Random;
 
 public class Game extends JPanel implements KeyListener {
 
-    private static final int EASY = 1;
-    private static final int MEDIUM = 2;
-    private static final int HARD = 3;
-
     private int key, combo, highestCombo, beats, score;
-    private int difficulty = MEDIUM;
+    private int difficulty = 2;
     private double bpm, beatOffsetSeconds, accuracy, totalAccuracy, travelBeats, latency, hitwindow;
     private long nextBeatIndex, musicStartNanos;
     private double nextPatternTime;
@@ -55,7 +51,7 @@ public class Game extends JPanel implements KeyListener {
         beatOffsetSeconds = result.offsetSeconds;
         totalAccuracy = 0;
         travelBeats = 4.0;
-        hitwindow = 0.2; // 200 ms hit window
+        hitwindow = 0.2;
 
         level = "start";
         selectedSong = musicFile.substring(6, musicFile.length() - 4);
@@ -115,8 +111,8 @@ public class Game extends JPanel implements KeyListener {
             nextPatternTime += getPatternStepSize() * beatInterval;
         }
 
-        double hitY = t1.y + t1.height / 2.0; // where a note's CENTER sits at its beat time
-        double speed = hitY / travelSeconds; // pixels per second
+        double hitY = t1.y + t1.height / 2.0;
+        double speed = hitY / travelSeconds;
         java.util.Iterator<Rhythm> iterator = rhythms.iterator();
         while (iterator.hasNext()) {
             Rhythm rhythm = iterator.next();
@@ -132,17 +128,12 @@ public class Game extends JPanel implements KeyListener {
 
     private double getPatternStepSize() {
         double[] pattern;
-        switch (difficulty) {
-        case EASY:
+        if (difficulty == 1) {
             pattern = new double[] { 2.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0 };
-            break;
-        case HARD:
+        } else if (difficulty == 3) {
             pattern = new double[] { 0.5, 0.3333333333, 0.25, 0.5, 1.0, 0.3333333333, 0.5, 0.25, 1.0, 0.5, 0.3333333333, 0.25 };
-            break;
-        case MEDIUM:
-        default:
+        } else {
             pattern = new double[] { 1.0, 0.5, 1.0, 0.5, 1.0, 0.5, 2.0, 0.5 };
-            break;
         }
 
         double step = pattern[nextPatternStep % pattern.length];
@@ -180,17 +171,12 @@ public class Game extends JPanel implements KeyListener {
         g2d.drawString(selectedSongText, (getWidth() - g2d.getFontMetrics().stringWidth(selectedSongText)) / 2, getHeight() - 305);
 
         String difficultyName;
-        switch (difficulty) {
-        case EASY:
+        if (difficulty == 1) {
             difficultyName = "Easy";
-            break;
-        case HARD:
+        } else if (difficulty == 3) {
             difficultyName = "Hard";
-            break;
-        case MEDIUM:
-        default:
+        } else {
             difficultyName = "Medium";
-            break;
         }
 
         g2d.setColor(Color.WHITE);
@@ -507,19 +493,19 @@ public class Game extends JPanel implements KeyListener {
 
         if ("start".equals(level)) {
             if (key == 49) {
-                difficulty = EASY;
+                difficulty = 1;
                 key = -1;
                 repaint();
                 return;
             }
             if (key == 50) {
-                difficulty = MEDIUM;
+                difficulty = 2;
                 key = -1;
                 repaint();
                 return;
             }
             if (key == 51) {
-                difficulty = HARD;
+                difficulty = 3;
                 key = -1;
                 repaint();
                 return;
@@ -572,19 +558,19 @@ public class Game extends JPanel implements KeyListener {
             switch (key) {
             case 68:
                 target = t1;
-                break; // D
+                break;
             case 70:
                 target = t2;
-                break; // F
+                break;
             case 74:
                 target = t3;
-                break; // J
+                break;
             case 75:
                 target = t4;
-                break; // K
+                break;
             case 76:
                 target = t5;
-                break; // L
+                break;
             case 82:
                 key = -1;
                 reset();
@@ -602,7 +588,6 @@ public class Game extends JPanel implements KeyListener {
             key = -1;
             combo = checkHit(target) ? combo + 1 : 0;
             if (combo > highestCombo) {
-
                 highestCombo = combo;
             }
         }
@@ -682,11 +667,9 @@ public class Game extends JPanel implements KeyListener {
 
     @Override
     public void keyReleased(KeyEvent e) {
-
         if (e.getKeyCode() == key) {
             key = -1;
         }
-
     }
 
 }
