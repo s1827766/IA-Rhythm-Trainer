@@ -318,12 +318,8 @@ public class Game extends JPanel implements KeyListener {
         double songSeconds = getSongSeconds();
         for (int i = 0; i < rhythms.size(); i++) {
             Rhythm rhythm = rhythms.get(i);
-<<<<<<< HEAD
             double timingError = songSeconds - rhythm.getTargetSeconds();
             double error = Math.abs(timingError);
-=======
-            double error = Math.abs(rhythm.getTars() - songSeconds);
->>>>>>> 903e067d55b2b1812c07689667da3b3aa78bcbfc
 
             if (rhythm.getX() == hitRect.x && error < hitwindow) {
                 double offsetSeconds = songSeconds - rhythm.getTargetSeconds();
