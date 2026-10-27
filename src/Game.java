@@ -13,9 +13,7 @@ public class Game extends JPanel implements KeyListener {
     private int difficulty = 2;
     private double bpm, beatOffsetSeconds, accuracy, totalAccuracy, travelBeats, latency, hitwindow;
     private long nextBeatIndex, musicStartNanos;
-    private double nextPatternTime;
-    private int nextPatternStep;
-    private int nextPatternLane;
+    private double nextGeneratedBeatTime;
     private double inputOffsetTotal;
     private int inputOffsetCount;
 
@@ -55,7 +53,7 @@ public class Game extends JPanel implements KeyListener {
 
         level = "start";
         selectedSong = musicFile.substring(6, musicFile.length() - 4);
-        resetPatternState();
+        nextGeneratedBeatTime = beatOffsetSeconds;
         s.loadMusic(musicFile);
 
         Timer timer = new Timer(16, e -> {
@@ -96,19 +94,15 @@ public class Game extends JPanel implements KeyListener {
         double songSeconds = getSongSeconds();
         double beatInterval = 60.0 / bpm;
         double travelSeconds = travelBeats * beatInterval;
-        double futureLimit = Math.max(songSeconds, 0.0) + travelSeconds + beatInterval * 12;
 
-        while (nextPatternTime <= futureLimit) {
-            double targetSeconds = nextPatternTime;
-            if (targetSeconds > s.getMusicLengthSeconds() + 2) {
+        while (nextGeneratedBeatTime <= songSeconds + travelSeconds + beatInterval * 12) {
+            double startTime = nextGeneratedBeatTime;
+            if (startTime > s.getMusicLengthSeconds() + 2) {
                 break;
             }
 
-            int lane = nextPatternLane % trackRectangles.size();
-            nextPatternLane++;
-            int trackX = trackRectangles.get(lane).x;
-            rhythms.add(new Rhythm(trackX, 0, 200, 45, getRandomColor(), targetSeconds));
-            nextPatternTime += getPatternStepSize() * beatInterval;
+            generateRandomGroup(startTime, beatInterval);
+            nextGeneratedBeatTime += randomGapInBeats(beatInterval);
         }
 
         double hitY = t1.y + t1.height / 2.0;
@@ -126,25 +120,67 @@ public class Game extends JPanel implements KeyListener {
         }
     }
 
-    private double getPatternStepSize() {
-        double[] pattern;
-        if (difficulty == 1) {
-            pattern = new double[] { 2.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0 };
-        } else if (difficulty == 3) {
-            pattern = new double[] { 0.5, 0.3333333333, 0.25, 0.5, 1.0, 0.3333333333, 0.5, 0.25, 1.0, 0.5, 0.3333333333, 0.25 };
-        } else {
-            pattern = new double[] { 1.0, 0.5, 1.0, 0.5, 1.0, 0.5, 2.0, 0.5 };
+    private void generateRandomGroup(double startTime, double beatInterval) {
+        int groupSize = chooseGroupSize();
+
+        if (groupSize == 3) {
+            for (int i = 0; i < 3; i++) {
+                addNote(startTime + i * beatInterval / 3.0);
+            }
+            return;
         }
 
-        double step = pattern[nextPatternStep % pattern.length];
-        nextPatternStep++;
-        return step;
+        if (groupSize == 4) {
+            for (int i = 0; i < 4; i++) {
+                addNote(startTime + i * beatInterval / 4.0);
+            }
+            return;
+        }
+
+        addNote(startTime);
     }
 
-    private void resetPatternState() {
-        nextPatternTime = beatOffsetSeconds;
-        nextPatternStep = 0;
-        nextPatternLane = 0;
+    private void addNote(double time) {
+        int lane = random.nextInt(trackRectangles.size());
+        int x = trackRectangles.get(lane).x;
+        rhythms.add(new Rhythm(x, 0, 200, 45, getRandomColor(), time));
+    }
+
+    private int chooseGroupSize() {
+        if (difficulty == 1) {
+            return 1;
+        }
+
+        if (difficulty == 2) {
+            int roll = random.nextInt(10);
+            if (roll < 7) {
+                return 1;
+            }
+            return 4;
+        }
+
+        int roll = random.nextInt(10);
+        if (roll < 6) {
+            return 1;
+        }
+        if (roll < 8) {
+            return 3;
+        }
+        return 4;
+    }
+
+    private double randomGapInBeats(double beatInterval) {
+        double[] allowed;
+
+        if (difficulty == 1) {
+            allowed = new double[] { 1.0, 2.0 };
+        } else if (difficulty == 3) {
+            allowed = new double[] { 0.25, 1.0 / 3.0, 0.5, 1.0, 2.0 };
+        } else {
+            allowed = new double[] { 0.5, 1.0, 2.0 };
+        }
+
+        return allowed[random.nextInt(allowed.length)] * beatInterval;
     }
 
     private double getSongSeconds() {
@@ -318,8 +354,7 @@ public class Game extends JPanel implements KeyListener {
         double songSeconds = getSongSeconds();
         for (int i = 0; i < rhythms.size(); i++) {
             Rhythm rhythm = rhythms.get(i);
-            double timingError = songSeconds - rhythm.getTargetSeconds();
-            double error = Math.abs(timingError);
+            double error = Math.abs(rhythm.getTargetSeconds() - songSeconds);
 
             if (rhythm.getX() == hitRect.x && error < hitwindow) {
                 double offsetSeconds = songSeconds - rhythm.getTargetSeconds();
@@ -330,12 +365,12 @@ public class Game extends JPanel implements KeyListener {
                 rhythm.setHit(true);
                 rhythm.setFading(true);
                 fadeRhythm(rhythm, 2);
-                showIndicator(trackRectangles.indexOf(hitRect), (1 - error / hitwindow) * 100, timingError);
+                showIndicator(trackRectangles.indexOf(hitRect), (1 - error / hitwindow) * 100);
                 return true;
             }
         }
         beats++;
-        showIndicator(trackRectangles.indexOf(hitRect), 0, 0);
+        showIndicator(trackRectangles.indexOf(hitRect), 0);
         return false;
     }
 
@@ -351,7 +386,7 @@ public class Game extends JPanel implements KeyListener {
                     fadeRhythm(rhythm, 5);
                     beats++;
                     combo = 0;
-                    showIndicator(track, 0, 0);
+                    showIndicator(track, 0);
                     break;
                 }
             }
@@ -359,7 +394,7 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public void checkEnd() {
-        if (musicStarted && s.getPlaybackSeconds() >= s.getMusicLengthSeconds() + 2) {
+        if (musicStarted && s.getPlaybackSeconds() >= s.getMusicLengthSeconds() + 5) {
             level = "results";
         }
     }
@@ -389,31 +424,23 @@ public class Game extends JPanel implements KeyListener {
         return new Color(r, g, b);
     }
 
-    public void showIndicator(int track, double accuracy, double timingError) {
-        if (accuracy <= 0) {
+    public void showIndicator(int track, double accuracy) {
+        if (accuracy >= 90) {
+            messages[track] = "Perfect";
+            colors[track] = Color.CYAN;
+            score += 100;
+        } else if (accuracy >= 50) {
+            messages[track] = "Good";
+            colors[track] = Color.GREEN;
+            score += 50;
+        } else if (accuracy > 0) {
+            messages[track] = "OK";
+            colors[track] = Color.YELLOW;
+            score += 20;
+        } else {
             messages[track] = "Miss";
             colors[track] = Color.RED;
             score -= 30;
-        } else if (Math.abs(timingError) <= 0.01) {
-            messages[track] = "Perfect";
-            colors[track] = Color.CYAN;
-        } else if (Math.abs(timingError) <= 0.025) {
-            messages[track] = "Good";
-            colors[track] = Color.GREEN;
-        } else if (Math.abs(timingError) >= 0.1) {
-            messages[track] = timingError < 0 ? "Super Early!" : "Super Late!";
-            colors[track] = Color.ORANGE;
-        } else {
-            messages[track] = timingError < 0 ? "Early!" : "Late!";
-            colors[track] = Color.YELLOW;
-        }
-
-        if (accuracy >= 90) {
-            score += 100;
-        } else if (accuracy >= 50) {
-            score += 50;
-        } else if (accuracy > 0) {
-            score += 20;
         }
 
         alpha[track] = 255;
@@ -500,20 +527,23 @@ public class Game extends JPanel implements KeyListener {
     public void keyPressed(KeyEvent e) {
         key = e.getKeyCode();
 
-        if (level == "start") {
+        if ("start".equals(level)) {
             if (key == 49) {
                 difficulty = 1;
                 key = -1;
+                repaint();
                 return;
             }
             if (key == 50) {
                 difficulty = 2;
                 key = -1;
+                repaint();
                 return;
             }
             if (key == 51) {
                 difficulty = 3;
                 key = -1;
+                repaint();
                 return;
             }
 
@@ -527,6 +557,7 @@ public class Game extends JPanel implements KeyListener {
                     finishCalibration();
                 }
                 key = -1;
+                repaint();
                 return;
             }
 
@@ -536,6 +567,7 @@ public class Game extends JPanel implements KeyListener {
                 s.playPreparedMusic();
                 calibrating = true;
                 key = -1;
+                repaint();
                 return;
             }
 
@@ -543,7 +575,7 @@ public class Game extends JPanel implements KeyListener {
                 key = -1;
 
                 createTracks();
-                resetPatternState();
+                nextGeneratedBeatTime = beatOffsetSeconds;
 
                 double travelSeconds = travelBeats * 60.0 / bpm;
                 double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
@@ -556,7 +588,7 @@ public class Game extends JPanel implements KeyListener {
             }
         }
 
-        if (level == "game") {
+        if ("game".equals(level)) {
             Rectangle target;
 
             switch (key) {
@@ -596,7 +628,7 @@ public class Game extends JPanel implements KeyListener {
             }
         }
 
-        if (level == "results") {
+        if ("results".equals(level)) {
             if (key == 82) {
                 key = -1;
                 Window window = SwingUtilities.getWindowAncestor(this);
@@ -632,7 +664,7 @@ public class Game extends JPanel implements KeyListener {
         inputOffsetCount = 0;
         nextBeatIndex = 0;
         musicStarted = false;
-        resetPatternState();
+        nextGeneratedBeatTime = beatOffsetSeconds;
 
         double travelSeconds = travelBeats * 60.0 / bpm;
         double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
