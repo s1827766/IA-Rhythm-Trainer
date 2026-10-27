@@ -9,9 +9,19 @@ import java.util.Random;
 
 public class Game extends JPanel implements KeyListener {
 
+    private static final int EASY = 1;
+    private static final int MEDIUM = 2;
+    private static final int HARD = 3;
+
     private int key, combo, highestCombo, beats, score;
+    private int difficulty = MEDIUM;
     private double bpm, beatOffsetSeconds, accuracy, totalAccuracy, travelBeats, latency, hitwindow;
     private long nextBeatIndex, musicStartNanos;
+    private double nextPatternTime;
+    private int nextPatternStep;
+    private int nextPatternLane;
+    private double inputOffsetTotal;
+    private int inputOffsetCount;
 
     private String level, selectedSong;
     private boolean musicStarted, calibrating, timingCalibrated;
@@ -38,6 +48,8 @@ public class Game extends JPanel implements KeyListener {
         beats = 0;
         score = 0;
         latency = 0;
+        inputOffsetTotal = 0;
+        inputOffsetCount = 0;
 
         bpm = result.bpm;
         beatOffsetSeconds = result.offsetSeconds;
@@ -47,6 +59,7 @@ public class Game extends JPanel implements KeyListener {
 
         level = "start";
         selectedSong = musicFile.substring(6, musicFile.length() - 4);
+        resetPatternState();
         s.loadMusic(musicFile);
 
         Timer timer = new Timer(16, e -> {
@@ -87,17 +100,19 @@ public class Game extends JPanel implements KeyListener {
         double songSeconds = getSongSeconds();
         double beatInterval = 60.0 / bpm;
         double travelSeconds = travelBeats * beatInterval;
+        double futureLimit = Math.max(songSeconds, 0.0) + travelSeconds + beatInterval * 12;
 
-        while (true) {
-            double targetSeconds = beatOffsetSeconds + nextBeatIndex * beatInterval;
-            if (targetSeconds > s.getMusicLengthSeconds() || targetSeconds - travelSeconds > songSeconds) {
+        while (nextPatternTime <= futureLimit) {
+            double targetSeconds = nextPatternTime;
+            if (targetSeconds > s.getMusicLengthSeconds() + 2) {
                 break;
             }
-            if (targetSeconds > songSeconds) {
-                int randX = random.nextInt(5) * 200 + (getWidth() / 2) - 500;
-                rhythms.add(new Rhythm(randX, 0, 200, 45, getRandomColor(), targetSeconds));
-            }
-            nextBeatIndex++;
+
+            int lane = nextPatternLane % trackRectangles.size();
+            nextPatternLane++;
+            int trackX = trackRectangles.get(lane).x;
+            rhythms.add(new Rhythm(trackX, 0, 200, 45, getRandomColor(), targetSeconds));
+            nextPatternTime += getPatternStepSize() * beatInterval;
         }
 
         double hitY = t1.y + t1.height / 2.0; // where a note's CENTER sits at its beat time
@@ -113,6 +128,32 @@ public class Game extends JPanel implements KeyListener {
                 iterator.remove();
             }
         }
+    }
+
+    private double getPatternStepSize() {
+        double[] pattern;
+        switch (difficulty) {
+        case EASY:
+            pattern = new double[] { 2.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0 };
+            break;
+        case HARD:
+            pattern = new double[] { 0.5, 0.3333333333, 0.25, 0.5, 1.0, 0.3333333333, 0.5, 0.25, 1.0, 0.5, 0.3333333333, 0.25 };
+            break;
+        case MEDIUM:
+        default:
+            pattern = new double[] { 1.0, 0.5, 1.0, 0.5, 1.0, 0.5, 2.0, 0.5 };
+            break;
+        }
+
+        double step = pattern[nextPatternStep % pattern.length];
+        nextPatternStep++;
+        return step;
+    }
+
+    private void resetPatternState() {
+        nextPatternTime = beatOffsetSeconds;
+        nextPatternStep = 0;
+        nextPatternLane = 0;
     }
 
     private double getSongSeconds() {
@@ -138,15 +179,32 @@ public class Game extends JPanel implements KeyListener {
         String selectedSongText = "Selected Song: " + selectedSong;
         g2d.drawString(selectedSongText, (getWidth() - g2d.getFontMetrics().stringWidth(selectedSongText)) / 2, getHeight() - 305);
 
+        String difficultyName;
+        switch (difficulty) {
+        case EASY:
+            difficultyName = "Easy";
+            break;
+        case HARD:
+            difficultyName = "Hard";
+            break;
+        case MEDIUM:
+        default:
+            difficultyName = "Medium";
+            break;
+        }
+
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
         String instruction = "Press Space to start";
         g2d.drawString(instruction, (getWidth() - g2d.getFontMetrics().stringWidth(instruction)) / 2, getHeight() - 250);
 
         g2d.setFont(new Font("Courier New", Font.BOLD, 30));
+        String difficultyText = "Difficulty: " + difficultyName + " (1 Easy | 2 Medium | 3 Hard)";
+        g2d.drawString(difficultyText, (getWidth() - g2d.getFontMetrics().stringWidth(difficultyText)) / 2, getHeight() - 210);
+
         String calibrationStatus = calibrating ? "Tap Space with the beat; press Enter when done (" + calibrationTaps.size() + " taps)"
                 : timingCalibrated ? String.format("Timing offset: %.0f ms | Press C to recalibrate", latency * 1000) : "Press C to calibrate";
-        g2d.drawString(calibrationStatus, (getWidth() - g2d.getFontMetrics().stringWidth(calibrationStatus)) / 2, getHeight() - 205);
+        g2d.drawString(calibrationStatus, (getWidth() - g2d.getFontMetrics().stringWidth(calibrationStatus)) / 2, getHeight() - 170);
     }
 
     public void drawGame(Graphics g2d) {
@@ -197,7 +255,6 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public void drawRects(Graphics g2d) {
-
         g2d.setColor(Color.RED);
         g2d.drawRect(t1.x, t1.y, t1.width, t1.height);
         g2d.setColor(Color.BLUE);
@@ -208,6 +265,21 @@ public class Game extends JPanel implements KeyListener {
         g2d.drawRect(t4.x, t4.y, t4.width, t4.height);
         g2d.setColor(Color.MAGENTA);
         g2d.drawRect(t5.x, t5.y, t5.width, t5.height);
+
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Courier New", Font.BOLD, 24));
+        FontMetrics metrics = g2d.getFontMetrics();
+
+        String[] labels = new String[] { "D", "F", "J", "K", "L" };
+        Rectangle[] tracks = new Rectangle[] { t1, t2, t3, t4, t5 };
+
+        for (int i = 0; i < tracks.length; i++) {
+            Rectangle track = tracks[i];
+            String label = labels[i];
+            int x = track.x + (track.width - metrics.stringWidth(label)) / 2;
+            int y = track.y + (track.height + metrics.getAscent()) / 2;
+            g2d.drawString(label, x, y);
+        }
     }
 
     public void drawResults(Graphics g2d) {
@@ -222,7 +294,11 @@ public class Game extends JPanel implements KeyListener {
         g2d.drawString("Final Score: " + score, (getWidth() - g2d.getFontMetrics().stringWidth("Final Score: " + score)) / 4, 400);
         g2d.drawString("Final Accuracy: " + (beats > 0 ? String.format("%.2f", totalAccuracy / beats) : "--.--") + "%",
                 (getWidth() - g2d.getFontMetrics().stringWidth("Final Accuracy: " + (beats > 0 ? String.format("%.2f", totalAccuracy / beats) : "--.--") + "%")) / 4, 450);
-        g2d.drawString("Highest Combo: " + highestCombo, (getWidth() - g2d.getFontMetrics().stringWidth("Highest Combo: " + highestCombo)) / 4, 500);
+
+        double avgInputOffset = inputOffsetCount == 0 ? 0.0 : inputOffsetTotal / inputOffsetCount;
+        String offsetText = inputOffsetCount == 0 ? "--" : String.format("%.0f ms %s", Math.abs(avgInputOffset * 1000.0), avgInputOffset <= 0 ? "early" : "late");
+        g2d.drawString("Avg input offset: " + offsetText, (getWidth() - g2d.getFontMetrics().stringWidth("Avg input offset: " + offsetText)) / 4, 500);
+        g2d.drawString("Highest Combo: " + highestCombo, (getWidth() - g2d.getFontMetrics().stringWidth("Highest Combo: " + highestCombo)) / 4, 550);
 
         g2d.setFont(new Font("Courier New", Font.BOLD, 60));
         g2d.drawString("Press R to restart", (getWidth() - g2d.getFontMetrics().stringWidth("Press R to restart")) / 2, getHeight() - 100);
@@ -259,6 +335,9 @@ public class Game extends JPanel implements KeyListener {
             double error = Math.abs(rhythm.getTargetSeconds() - songSeconds);
 
             if (rhythm.getX() == hitRect.x && error < hitwindow) {
+                double offsetSeconds = songSeconds - rhythm.getTargetSeconds();
+                inputOffsetTotal += offsetSeconds;
+                inputOffsetCount++;
                 totalAccuracy += (1 - error / hitwindow) * 100;
                 beats++;
                 rhythm.setHit(true);
@@ -365,7 +444,6 @@ public class Game extends JPanel implements KeyListener {
             int r = Math.max(0, currentColor.getRed() - 8);
             int g = Math.max(0, currentColor.getGreen() - 8);
             int b = Math.max(0, currentColor.getBlue() - 8);
-            System.out.println("b");
 
             rhythm.setColor(new Color(r, g, b));
 
@@ -426,9 +504,27 @@ public class Game extends JPanel implements KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {
         key = e.getKeyCode();
-        System.out.println(key);
 
-        if (level == "start") {
+        if ("start".equals(level)) {
+            if (key == 49) {
+                difficulty = EASY;
+                key = -1;
+                repaint();
+                return;
+            }
+            if (key == 50) {
+                difficulty = MEDIUM;
+                key = -1;
+                repaint();
+                return;
+            }
+            if (key == 51) {
+                difficulty = HARD;
+                key = -1;
+                repaint();
+                return;
+            }
+
             if (calibrating) {
                 if (key == 32) {
                     double tapTime = s.getPlaybackSeconds();
@@ -457,6 +553,7 @@ public class Game extends JPanel implements KeyListener {
                 key = -1;
 
                 createTracks();
+                resetPatternState();
 
                 double travelSeconds = travelBeats * 60.0 / bpm;
                 double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
@@ -469,7 +566,7 @@ public class Game extends JPanel implements KeyListener {
             }
         }
 
-        if (level == "game") {
+        if ("game".equals(level)) {
             Rectangle target;
 
             switch (key) {
@@ -510,7 +607,7 @@ public class Game extends JPanel implements KeyListener {
             }
         }
 
-        if (level == "results") {
+        if ("results".equals(level)) {
             if (key == 82) {
                 key = -1;
                 Window window = SwingUtilities.getWindowAncestor(this);
@@ -542,8 +639,11 @@ public class Game extends JPanel implements KeyListener {
         score = 0;
         highestCombo = 0;
         totalAccuracy = 0;
+        inputOffsetTotal = 0;
+        inputOffsetCount = 0;
         nextBeatIndex = 0;
         musicStarted = false;
+        resetPatternState();
 
         double travelSeconds = travelBeats * 60.0 / bpm;
         double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
