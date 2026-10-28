@@ -74,7 +74,6 @@ public class BeatDetector {
             energy[window] = Math.sqrt(sumSquares / (end - start));
         }
 
-        // Keep only increases in energy; these are rough onset candidates.
         double[] onset = new double[windowCount];
         double onsetMean = 0;
 
@@ -110,13 +109,10 @@ public class BeatDetector {
             throw new IllegalArgumentException("Could not estimate a beat interval.");
         }
 
-        // bestLag is only accurate to about +-1 BPM, so refine it using the whole song.
         double lowBpm = 60.0 / ((bestLag + 1) * windowSeconds);
         double highBpm = 60.0 / (Math.max(1, bestLag - 1) * windowSeconds);
         double[] best = fit(onset, windowSeconds, lowBpm, highBpm, 0.005);
 
-        // Autocorrelation often lands on half the real tempo. Prefer double unless it
-        // fits much worse.
         if (best[0] * 2 <= MAX_BPM) {
             double[] faster = fit(onset, windowSeconds, best[0] * 2 - 0.1, best[0] * 2 + 0.1, 0.005);
             if (faster[2] >= best[2] * 0.85) {
@@ -127,16 +123,13 @@ public class BeatDetector {
         return new Result(best[0], best[1]);
     }
 
-    // Tries many BPM / start-time combinations and returns {bpm, offsetSeconds,
-    // score}
-    // for the grid that lands on the strongest onsets across the WHOLE song.
     private static double[] fit(double[] onset, double windowSeconds, double minBpm, double maxBpm, double bpmStep) {
         double bestScore = -1;
         double bestBpm = minBpm;
         double bestOffset = 0;
 
         for (double bpm = minBpm; bpm <= maxBpm; bpm += bpmStep) {
-            double interval = 60.0 / bpm / windowSeconds; // beat spacing in windows (not rounded)
+            double interval = 60.0 / bpm / windowSeconds; 
 
             for (double phase = 0; phase < interval; phase += 0.5) {
                 double score = 0;

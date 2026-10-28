@@ -1,9 +1,7 @@
-import javax.swing.ImageIcon;
 import java.awt.Color;
 
 public class Rhythm {
     private int x, y, width, height, dy;
-    private ImageIcon image;
     private Color color;
     private double targetSeconds;
     private boolean fading, hit;
@@ -11,7 +9,6 @@ public class Rhythm {
     public Rhythm() {
         x = 0;
         y = 0;
-        image = new ImageIcon("rhythm.png");
         width = 0;
         height = 0;
         dy = 0;
@@ -53,10 +50,6 @@ public class Rhythm {
 
     public void setDy(int dy) {
         y += dy;
-    }
-
-    public ImageIcon getPic() {
-        return image;
     }
 
     public Color getColor() {

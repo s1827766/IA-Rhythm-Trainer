@@ -11,7 +11,7 @@ public class Game extends JPanel implements KeyListener {
     private int key, combo, highestCombo, beats, score;
     private int difficulty = 2;
     private double bpm, beatOffsetSeconds, accuracy, totalAccuracy, travelBeats, hitwindow;
-    private long nextBeatIndex, musicStartNanos;
+    private long musicStartNanos;
     private double nextGeneratedBeatTime;
     private double inputOffsetTotal;
     private int inputOffsetCount;
@@ -46,7 +46,7 @@ public class Game extends JPanel implements KeyListener {
         beatOffsetSeconds = result.offsetSeconds;
         totalAccuracy = 0;
         travelBeats = 4.0;
-        hitwindow = 0.8;
+        hitwindow = 0.3;
 
         level = "start";
         selectedSong = musicFile.substring(6, musicFile.length() - 4);
@@ -328,8 +328,9 @@ public class Game extends JPanel implements KeyListener {
     }
 
     public void checkMiss() {
+        double songSeconds = getSongSeconds();
         for (Rhythm rhythm : rhythms) {
-            if (rhythm.isFading() || rhythm.getY() <= t1.getY() + t1.getHeight()) {
+            if (rhythm.isFading() || songSeconds <= rhythm.getTargetSeconds() + hitwindow) {
                 continue;
             }
 
@@ -517,7 +518,6 @@ public class Game extends JPanel implements KeyListener {
                 double travelSeconds = travelBeats * 60.0 / bpm;
                 double leadInSeconds = Math.max(0, travelSeconds - beatOffsetSeconds);
                 musicStartNanos = System.nanoTime() + (long) (leadInSeconds * 1_000_000_000.0);
-                nextBeatIndex = 0;
                 musicStarted = false;
                 combo = 0;
                 rhythms.clear();
@@ -599,7 +599,6 @@ public class Game extends JPanel implements KeyListener {
         totalAccuracy = 0;
         inputOffsetTotal = 0;
         inputOffsetCount = 0;
-        nextBeatIndex = 0;
         musicStarted = false;
         nextGeneratedBeatTime = beatOffsetSeconds;
 
